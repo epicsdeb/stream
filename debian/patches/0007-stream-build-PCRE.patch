@@ -1,0 +1,25 @@
+From: Michael Davidsaver <mdavidsaver@bnl.gov>
+Date: Thu, 15 Nov 2012 13:22:53 -0500
+Subject: stream: build PCRE
+
+Build optional regular expression support for linux targets
+---
+ configure/RELEASE | 5 +++++
+ 1 file changed, 5 insertions(+)
+
+diff --git a/configure/RELEASE b/configure/RELEASE
+index 8b62808..b2f16ea 100644
+--- a/configure/RELEASE
++++ b/configure/RELEASE
+@@ -8,6 +8,11 @@
+ # each time EPICS_BASE, SNCSEQ, or any other external
+ # module defined in the RELEASE file is rebuilt.
+ 
++ifneq ($(filter linux%,$(T_A)),)
++PCRE_INCLUDE=/usr/include
++PCRE_LIB=/usr/lib
++endif
++
+ SUPPORT=$(EPICS_BASE)
+ ASYN=$(EPICS_BASE)
+ CALC=$(EPICS_BASE)

@@ -1,0 +1,35 @@
+From: Michael Davidsaver <mdavidsaver@gmail.com>
+Date: Tue, 15 Mar 2016 12:56:22 -0400
+Subject: don't build streamApp
+
+---
+ Makefile           | 2 +-
+ streamApp/Makefile | 2 ++
+ 2 files changed, 3 insertions(+), 1 deletion(-)
+
+diff --git a/Makefile b/Makefile
+index efe17bb..3487cfb 100644
+--- a/Makefile
++++ b/Makefile
+@@ -19,7 +19,7 @@ else
+   endif
+ endif
+ 
+-DIRS += streamApp
++#DIRS += streamApp
+ 
+ include $(CONFIG)/RULES_TOP
+ 
+diff --git a/streamApp/Makefile b/streamApp/Makefile
+index 2e1398f..8668211 100644
+--- a/streamApp/Makefile
++++ b/streamApp/Makefile
+@@ -33,6 +33,8 @@ ifneq ($(words $(CALC) $(SYNAPPS)), 0)
+ streamApp_DBD += calcSupport.dbd
+ streamApp_DBD += streamSynApps.dbd
+ PROD_LIBS += calc
++PROD_LIBS += sscan
++PROD_LIBS += seq pv
+ # older calc versions require sscan
+ #PROD_LIBS += sscan
+ PROD_LIBS_DEFAULT += streamSynApps

@@ -1,0 +1,21 @@
+From: Michael Davidsaver <mdavidsaver@gmail.com>
+Date: Tue, 15 Mar 2016 10:14:40 -0400
+Subject: no clean:: for Base 3.15
+
+---
+ streamApp/Makefile | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/streamApp/Makefile b/streamApp/Makefile
+index d9dd0ba..2e1398f 100644
+--- a/streamApp/Makefile
++++ b/streamApp/Makefile
+@@ -58,7 +58,7 @@ CPPFLAGS += -DDEBUGFILE=StreamDebug.log
+ 
+ include $(TOP)/configure/RULES
+ 
+-clean:: myclean
++clean: myclean
+ 
+ myclean:
+ 	$(RM) core* StreamDebug.log
