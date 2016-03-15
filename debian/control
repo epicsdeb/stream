@@ -1,0 +1,75 @@
+Source: epics-stream
+Section: libdevel
+Priority: extra
+Maintainer: Michael Davidsaver <mdavidsaver@gmail.com>
+Build-Depends: debhelper (>= 9), epics-debhelper (>= 8.14~),
+               libpcre3-dev,
+               epics-dev,
+XS-Rtems-Build-Depends: rtems-epics, rtems-sscan, rtems-calc,
+Standards-Version: 3.9.6
+Homepage: http://epics.web.psi.ch/software/streamdevice/
+Vcs-Git: https://github.com/epicsdeb/stream.git
+Vcs-Browser: https://github.com/epicsdeb/stream
+
+Package: epics-stream-dev
+Architecture: any
+Depends: libepics-stream2.6 (= ${binary:Version}),
+         ${shlibs:Depends}, ${misc:Depends},
+         ${epics:Depends},
+Conflicts: epics-synapps, epics-synapps-dev,
+Description: 'expect' for EPICS
+ Send and receive parameterized byte strings to serial-like devices.
+ .
+ This package contains headers and libraries needed at build time.
+
+Package: libepics-stream2.6
+Architecture: any
+Depends: ${shlibs:Depends}, ${misc:Depends},
+Description: 'expect' for EPICS
+ Send and receive parameterized byte strings to serial-like devices.
+ .
+ This package contains runtime libraries
+
+Package: rtems-stream-mvme2100
+Architecture: all
+Depends: epics-stream-dev (>= ${source:Version}),
+         epics-stream-dev (<< ${source:Version}.1~),
+         ${rtems:Depends}, ${misc:Depends},
+Conflicts: rtems-synapps-mvme2100,
+Description: 'expect' for EPICS
+ Send and receive parameterized byte strings to serial-like devices.
+ .
+ This package contains support for the MVME2100 VME SBC
+
+Package: rtems-stream-mvme3100
+Architecture: all
+Depends: epics-stream-dev (>= ${source:Version}),
+         epics-stream-dev (<< ${source:Version}.1~),
+         ${rtems:Depends}, ${misc:Depends},
+Conflicts: rtems-synapps-mvme3100,
+Description: 'expect' for EPICS
+ Send and receive parameterized byte strings to serial-like devices.
+ .
+ This package contains support for the MVME3100 VME SBC
+
+Package: rtems-stream-mvme5500
+Architecture: all
+Depends: epics-stream-dev (>= ${source:Version}),
+         epics-stream-dev (<< ${source:Version}.1~),
+         ${rtems:Depends}, ${misc:Depends},
+Conflicts: rtems-synapps-mvme5500,
+Description: 'expect' for EPICS
+ Send and receive parameterized byte strings to serial-like devices.
+ .
+ This package contains support for the MVME5500 VME SBC
+
+Package: rtems-stream-pc386
+Architecture: all
+Depends: epics-stream-dev (>= ${source:Version}),
+         epics-stream-dev (<< ${source:Version}.1~),
+         ${rtems:Depends}, ${misc:Depends},
+Conflicts: rtems-synapps-pc386,
+Description: 'expect' for EPICS
+ Send and receive parameterized byte strings to serial-like devices.
+ .
+ This package contains support for the pc386 RTEMS BSP
