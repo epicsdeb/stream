@@ -13,7 +13,7 @@ Build-Depends: debhelper (>= 9), epics-debhelper (>= 8.14~),
                rtems-calc-mvme3100,
                rtems-calc-mvme5500,
                rtems-calc-pc386,
-XS-Rtems-Build-Depends: rtems-epics, rtems-sscan, rtems-calc,
+XS-Rtems-Build-Depends: rtems-epics, rtems-seq, rtems-sscan, rtems-calc, rtems-asyn,
 Standards-Version: 3.9.6
 Homepage: http://epics.web.psi.ch/software/streamdevice/
 Vcs-Git: https://github.com/epicsdeb/stream.git
