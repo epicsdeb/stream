@@ -1,3 +1,11 @@
+epics-stream (2.6-2) unstable; urgency=medium
+
+  * Add conf.d/50stream-pcre.make patch
+    to automatically inject -lpcre to avoid static
+    linking failures.
+
+ -- Michael Davidsaver <mdavidsaver@gmail.com>  Wed, 23 Mar 2016 09:47:35 -0400
+
 epics-stream (2.6-1) unstable; urgency=medium
 
   * initial
