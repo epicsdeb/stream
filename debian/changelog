@@ -1,3 +1,9 @@
+epics-stream (2.6-3) unstable; urgency=medium
+
+  * BLD: add runtime dependency on libpcre
+
+ -- Daron Chabot <chabot@frib.msu.edu>  Fri, 12 Aug 2016 15:28:03 -0400
+
 epics-stream (2.6-2) unstable; urgency=medium
 
   * Add conf.d/50stream-pcre.make patch
