@@ -5,3 +5,4 @@
 0005-stream-build-PCRE.patch
 0006-no-clean-for-Base-3.15.patch
 0007-don-t-build-streamApp.patch
+0008-Delete-GNUmakefile.patch
