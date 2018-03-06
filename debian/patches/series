@@ -6,3 +6,5 @@
 0006-no-clean-for-Base-3.15.patch
 0007-don-t-build-streamApp.patch
 0008-Delete-GNUmakefile.patch
+0009-Update-StreamBuffer.h.patch
+0010-Removing-conflict-at-write-in-devmmboDirectStream.c.patch
