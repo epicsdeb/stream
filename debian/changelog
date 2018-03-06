@@ -1,3 +1,13 @@
+epics-stream (2.7.7-1) unstable; urgency=medium
+
+  * New upstream version 2.7.7
+  * Update package version and maintainer
+  * Rebase patch queue
+  * Renumber patch queue
+  * Add patch that deletes GNUmakefile
+
+ -- Martin Konrad <konrad@frib.msu.edu>  Tue, 06 Mar 2018 13:45:02 -0500
+
 epics-stream (2.6-3) unstable; urgency=medium
 
   * BLD: add runtime dependency on libpcre
