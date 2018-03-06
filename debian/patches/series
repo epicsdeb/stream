@@ -1,10 +1,7 @@
-0001-stream-StreamDevice-2-6-patch20121003.patch
 0002-stream-remove-3.13-build.patch
-0003-stream-StreamDevice-2-6-patch20121113.patch
 0004-stream-add-mba-checksum.patch
 0005-stream-snapshot-missing-configure.patch
 0006-stream-fix-Makefiles.patch
 0007-stream-build-PCRE.patch
-0008-Overflow-with-long-PV-name.patch
 0009-no-clean-for-Base-3.15.patch
 0010-don-t-build-streamApp.patch
