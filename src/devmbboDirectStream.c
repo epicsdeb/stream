@@ -19,16 +19,17 @@
 *                                                              *
 ***************************************************************/
 
-#include "devStream.h"
 #include <mbboDirectRecord.h>
+#include "alarm.h"
+#include "devStream.h"
 #include <epicsExport.h>
 
 static long readData (dbCommon *record, format_t *format)
 {
     mbboDirectRecord *mbboD = (mbboDirectRecord *) record;
-    long val;
+    unsigned long val;
 
-    if (format->type == DBF_LONG)
+    if (format->type == DBF_ULONG || format->type == DBF_LONG)
     {
         if (streamScanf (record, format, &val)) return ERROR;
         if (mbboD->mask)
@@ -53,7 +54,7 @@ static long writeData (dbCommon *record, format_t *format)
     mbboDirectRecord *mbboD = (mbboDirectRecord *) record;
     long val;
 
-    if (format->type == DBF_LONG)
+    if (format->type == DBF_ULONG || format->type == DBF_LONG)
     {
         if (mbboD->mask) val = mbboD->rval & mbboD->mask;
         else val = mbboD->val;
@@ -67,8 +68,26 @@ static long initRecord (dbCommon *record)
     mbboDirectRecord *mbboD = (mbboDirectRecord *) record;
 
     mbboD->mask <<= mbboD->shft;
+    
+    /* Workaround for bug in mbboDirect record:
+       Put to VAL overwrites value to 0 if SEVR is INVALID_ALARM
+       Thus first write may send a wrong value.
+    */
+    mbboD->sevr = 0;    
     return streamInitRecord (record, &mbboD->out, readData, writeData);
 }
+
+/* Unfortunately the bug also corrupts the next write to VAL after an I/O error.
+   Thus make sure the record is never left in INVALID_ALARM status.
+*/
+
+static long write(dbCommon *record)
+{
+    long status = streamWrite(record);
+    if (record->nsev == INVALID_ALARM) record->nsev = MAJOR_ALARM;
+    return status;
+}
+
 
 struct {
     long number;
@@ -83,7 +102,7 @@ struct {
     streamInit,
     initRecord,
     streamGetIointInfo,
-    streamWrite
+    write
 };
 
 epicsExportAddress(dset,devmbboDirectStream);

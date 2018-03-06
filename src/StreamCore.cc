@@ -23,6 +23,8 @@
 #include <ctype.h>
 #include <stdlib.h>
 
+#define P PRINTF_SIZE_T_PREFIX
+
 enum Commands { end_cmd, in_cmd, out_cmd, wait_cmd, event_cmd, exec_cmd,
     connect_cmd, disconnect_cmd };
 const char* commandStr[] = { "end", "in", "out", "wait", "event", "exec",
@@ -57,7 +59,7 @@ static char* printCommands(StreamBuffer& buffer, const char* c)
                 break;
             case wait_cmd:
                 timeout = extract<unsigned long>(c);
-                buffer.print("    wait %ld;\n # ms", timeout);
+                buffer.print("    wait %ld; # ms\n", timeout);
                 break;
             case event_cmd:
                 eventnumber = extract<unsigned long>(c);
@@ -163,7 +165,7 @@ attachBus(const char* busname, int addr, const char* param)
     businterface = StreamBusInterface::find(this, busname, addr, param);
     if (!businterface)
     {
-        error("Businterface '%s' not found for '%s'\n",
+        error("Cannot find a bus named '%s' for '%s'\n",
             busname, name());
         return false;
     }
@@ -341,6 +343,7 @@ compileCommand(StreamProtocolParser::Protocol* protocol,
                 return false;
             }
             args++;
+            while (isspace(*args)) args++;
         }
         buffer.append(&eventmask, sizeof(eventmask));
         if (*args)
@@ -746,7 +749,7 @@ printSeparator()
 bool StreamCore::
 printValue(const StreamFormat& fmt, long value)
 {
-    if (fmt.type != long_format && fmt.type != enum_format)
+    if (fmt.type != unsigned_format && fmt.type != signed_format && fmt.type != enum_format)
     {
         error("%s: printValue(long) called with %%%c format\n",
             name(), fmt.conv);
@@ -760,8 +763,8 @@ printValue(const StreamFormat& fmt, long value)
             name(), value);
         return false;
     }
-    debug("StreamCore::printValue(%s, long): \"%s\"\n",
-        name(), outputLine.expand()());
+    debug("StreamCore::printValue %s %%%c long %ld (%lx): \"%s\"\n",
+        name(), fmt.conv, value, value, outputLine.expand()());
     return true;
 }
 
@@ -782,8 +785,8 @@ printValue(const StreamFormat& fmt, double value)
             name(), value);
         return false;
     }
-    debug("StreamCore::printValue(%s, double): \"%s\"\n",
-        name(), outputLine.expand()());
+    debug("StreamCore::printValue %s %%%c double %#g: \"%s\"\n",
+        name(), fmt.conv, value, outputLine.expand()());
     return true;
 }
 
@@ -805,8 +808,8 @@ printValue(const StreamFormat& fmt, char* value)
             name(), buffer.expand()());
         return false;
     }
-    debug("StreamCore::printValue(%s, char*): \"%s\"\n",
-        name(), outputLine.expand()());
+    debug("StreamCore::printValue %s %%%c char* \"%s\"): \"%s\"\n",
+        name(), fmt.conv, value, outputLine.expand()());
     return true;
 }
 
@@ -815,7 +818,7 @@ lockCallback(StreamIoStatus status)
 {
     MutexLock lock(this);
     debug("StreamCore::lockCallback(%s, status=%s)\n",
-        name(), status ? "Timeout" : "Success");
+        name(), StreamIoStatusStr[status]);
     if (!(flags & LockPending))
     {
         error("StreamCore::lockCallback(%s) called unexpectedly\n",
@@ -829,9 +832,21 @@ lockCallback(StreamIoStatus status)
         case StreamIoSuccess:
             break;
         case StreamIoTimeout:
+            debug("%s: length, within %ld ms, device seems to be busy\n",
+                name(), lockTimeout);
+            flags &= ~BusOwner;
+            finishProtocol(LockTimeout);
+            return;
+        case StreamIoFault:
+            error("%s: Locking failed because of a device fault\n",
+                name());
+            flags &= ~BusOwner;
             finishProtocol(LockTimeout);
             return;
         default:
+            error("StreamCore::lockCallback(%s) unexpected status %s\n",
+                name(), StreamIoStatusStr[status]);
+            flags &= ~BusOwner;
             finishProtocol(Fault);
             return;
     }
@@ -976,13 +991,13 @@ readCallback(StreamIoStatus status,
                 evalIn();
                 return 0;
             }
-            error("%s: No reply from device within %ld ms\n",
+            debug("StreamCore::readCallback(%s): No reply from device within %ld ms\n",
                 name(), replyTimeout);
             inputBuffer.clear();
             finishProtocol(ReplyTimeout);
             return 0;
         case StreamIoFault:
-            error("%s: I/O error after reading %ld byte%s: \"%s%s\"\n",
+            error("%s: I/O error after reading %"P"d byte%s: \"%s%s\"\n",
                 name(),
                 inputBuffer.length(), inputBuffer.length()==1 ? "" : "s",
                 inputBuffer.length() > 20 ? "..." : "",
@@ -991,7 +1006,7 @@ readCallback(StreamIoStatus status,
             return 0;
     }
     inputBuffer.append(input, size);
-    debug("StreamCore::readCallback(%s) inputBuffer=\"%s\", size %ld\n",
+    debug("StreamCore::readCallback(%s) inputBuffer=\"%s\", size %"P"d\n",
         name(), inputBuffer.expand()(), inputBuffer.length());
     if (*activeCommand != in_cmd)
     {
@@ -1184,6 +1199,7 @@ normal_format:
                 int consumed;
                 // code layout:
                 // formatstring <eos> StreamFormat [info]
+                formatstring.clear();
                 commandIndex = StreamProtocolParser::printString(formatstring, commandIndex);
                 
                 StreamFormat fmt = extract<StreamFormat>(commandIndex);
@@ -1200,7 +1216,8 @@ normal_format:
                     double ddummy;
                     switch (fmt.type)
                     {
-                        case long_format:
+                        case unsigned_format:
+                        case signed_format:
                         case enum_format:
                             consumed = StreamFormatConverter::find(fmt.conv)->
                                 scanLong(fmt, inputLine(consumedInput), ldummy);
@@ -1303,8 +1320,8 @@ normal_format:
                                 inputLine.length()-consumedInput > 20 ? "..." : "",
                                 formatstring());
                         else
-                            error("%s: Format \"%%%s\" has data type %s which does not match variable \"%s\".\n",
-                                name(), formatstring(), StreamFormatTypeStr[fmt.type], fieldName);
+                            error("%s: Format \"%%%s\" has data type %s which does not match the type of \"%s\".\n",
+                                name(), formatstring(), StreamFormatTypeStr[fmt.type], fieldAddress ? fieldName : name());
                     }
                     return false;
                 }
@@ -1441,7 +1458,7 @@ matchSeparator()
 long StreamCore::
 scanValue(const StreamFormat& fmt, long& value)
 {
-    if (fmt.type != long_format && fmt.type != enum_format)
+    if (fmt.type != unsigned_format && fmt.type != signed_format && fmt.type != enum_format)
     {
         error("%s: scanValue(long&) called with %%%c format\n",
             name(), fmt.conv);
@@ -1462,6 +1479,7 @@ scanValue(const StreamFormat& fmt, long& value)
         }
         else return -1;
     }
+    if (fmt.flags & fix_width_flag && consumed != fmt.width) return -1;
     if (consumed > inputLine.length()-consumedInput) return -1;
     debug("StreamCore::scanValue(%s) scanned %li\n",
         name(), value);
@@ -1493,6 +1511,7 @@ scanValue(const StreamFormat& fmt, double& value)
         }
         else return -1;
     }
+    if (fmt.flags & fix_width_flag && (consumed != (fmt.width + fmt.prec + 1))) return -1;
     if (consumed > inputLine.length()-consumedInput) return -1;
     debug("StreamCore::scanValue(%s) scanned %#g\n",
         name(), value);
@@ -1525,6 +1544,7 @@ scanValue(const StreamFormat& fmt, char* value, long maxlen)
         }
         else return -1;
     }
+    if (fmt.flags & fix_width_flag && consumed != fmt.width) return -1;
     if (consumed > inputLine.length()-consumedInput) return -1;
 #ifndef NO_TEMPORARY
     debug("StreamCore::scanValue(%s) scanned \"%s\"\n",
@@ -1732,6 +1752,27 @@ disconnectCallback(StreamIoStatus status)
             finishProtocol(Fault);
             return;
     }
+}
+
+void StreamCore::
+printStatus(StreamBuffer& buffer)
+{
+    buffer.print("active command=%s ",
+        activeCommand ? commandName(*activeCommand) : "NULL");
+    buffer.print("flags=0x%04lx ", flags);
+    if (flags & IgnoreExtraInput) buffer.append("IgnoreExtraInput ");
+    if (flags & InitRun) buffer.append("InitRun ");
+    if (flags & AsyncMode) buffer.append("AsyncMode ");
+    if (flags & GotValue) buffer.append("GotValue ");
+    if (flags & BusOwner) buffer.append("BusOwner ");
+    if (flags & Separator) buffer.append("Separator ");
+    if (flags & ScanTried) buffer.append("ScanTried ");
+    if (flags & AcceptInput) buffer.append("AcceptInput ");
+    if (flags & AcceptEvent) buffer.append("AcceptEvent ");
+    if (flags & LockPending) buffer.append("LockPending ");
+    if (flags & WritePending) buffer.append("WritePending ");
+    if (flags & WaitPending) buffer.append("WaitPending ");
+    busPrintStatus(buffer);
 }
 
 #include "streamReferences"
