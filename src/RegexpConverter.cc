@@ -23,7 +23,7 @@
 #include "string.h"
 #include "pcre.h"
 
-// Perl regular expressions (PCRE)   %/regexp/
+// Perl regular expressions (PCRE) %/regexp/ and  %#/regexp/subst/
 
 /* Notes:
  - Memory for compiled regexp is allocated in parse but never freed.
@@ -37,15 +37,17 @@
 
 class RegexpConverter : public StreamFormatConverter
 {
-    int parse (const StreamFormat&, StreamBuffer&, const char*&, bool);
-    int scanString(const StreamFormat&, const char*, char*, size_t);
+    int parse (const StreamFormat& fmt, StreamBuffer&, const char*&, bool);
+    int scanString(const StreamFormat& fmt, const char*, char*, size_t);
+    int scanPseudo(const StreamFormat& fmt, StreamBuffer& input, long& cursor);
+    bool printPseudo(const StreamFormat& fmt, StreamBuffer& output);
 };
 
 int RegexpConverter::
 parse(const StreamFormat& fmt, StreamBuffer& info,
     const char*& source, bool scanFormat)
 {
-    if (!scanFormat)
+    if (!scanFormat && !(fmt.flags & alt_flag))
     {
         error("Format conversion %%/regexp/ is only allowed in input formats\n");
         return false;
@@ -55,28 +57,31 @@ parse(const StreamFormat& fmt, StreamBuffer& info,
         error("Subexpression index %d too big (>9)\n", fmt.prec);
         return false;
     }    
-    if (fmt.flags & (left_flag|space_flag|zero_flag|alt_flag))
-    {
-        error("Use of modifiers '-', ' ', '0', '#'"
-            "not allowed with %%/regexp/ conversion\n");
-        return false;
-    }
+
     StreamBuffer pattern;
     while (*source != '/')
     {
         if (!*source) {
-            error("Missing closing '/' after %%/ format conversion\n");
+            error("Missing closing '/' after %%/%s format conversion\n", pattern());
             return false;
         }
-        if (*source == esc) {
-            source++;
-            pattern.print("\\x%02x", *source++ & 0xFF);
-            continue;
+        if (*source == esc) {          // handle escaped chars
+            if (*++source != '/')      // just un-escape /
+            {
+                pattern.append('\\');
+                if ((*source & 0x7f) < 0x30) // handle control chars
+                {
+                    pattern.print("x%02x", *source++);
+                    continue;
+                }
+                // fall through for PCRE codes like \B
+            }
         }
         pattern.append(*source++);
     }
     source++;
-    debug("regexp = \"%s\"\n", pattern());
+    debug("regexp = \"%s\"\n", pattern.expand()());
+    
     const char* errormsg;
     int eoffset;
     pcre* code = pcre_compile(pattern(), 0, 
@@ -87,6 +92,26 @@ parse(const StreamFormat& fmt, StreamBuffer& info,
         return false;
     }
     info.append(&code, sizeof(code));
+
+    if (fmt.flags & alt_flag)
+    {
+        StreamBuffer subst;
+        debug("check for subst in \"%s\"\n", StreamBuffer(source).expand()());        
+        while (*source != '/')
+        {
+            if (!*source) {
+                error("Missing closing '/' after %%#/%s/%s format conversion\n", pattern(), subst());
+                return false;
+            }
+            if (*source == esc)
+                subst.append(*source++);
+            subst.append(*source++);
+        }
+        source++;
+        debug("subst = \"%s\"\n", subst.expand()());
+        info.append(subst).append('\0');
+        return pseudo_format;
+    }
     return string_format;
 }
 
@@ -94,32 +119,130 @@ int RegexpConverter::
 scanString(const StreamFormat& fmt, const char* input,
     char* value, size_t maxlen)
 {
-    pcre* code;
-    size_t len;
     int ovector[30];
     int rc;
-    int subexpr = 0;
+    unsigned int l;
     
-    memcpy (&code, fmt.info, sizeof(code));
+    const char* info = fmt.info;
+    pcre* code = extract<pcre*>(info);
+    int length = fmt.width > 0 ? fmt.width : strlen(input);
+    int subexpr = fmt.prec > 0 ? fmt.prec : 0;
     
-    len = fmt.width > 0 ? fmt.width : strlen(input);
-    subexpr = fmt.prec > 0 ? fmt.prec : 0;
-    rc = pcre_exec(code, NULL, input, len, 0, 0, ovector, 30);
-    if (rc < 1) return -1;
-    if (fmt.flags & skip_flag) return ovector[1];
-    len = ovector[subexpr*2+1] - ovector[subexpr*2];
-    if (len >= maxlen) {
+    debug("input = \"%s\"\n", input);
+    debug("length=%d\n", length);
+    
+    rc = pcre_exec(code, NULL, input, length, 0, 0, ovector, 30);
+    debug("pcre_exec match \"%.*s\" result = %d\n", length, input, rc);
+    if ((subexpr && rc <= subexpr) || rc < 0)
+    {
+        // error or no match or not enough sub-expressions
+        return -1;
+    }
+    if (fmt.flags & skip_flag) return ovector[subexpr*2+1];
+
+    l = ovector[subexpr*2+1] - ovector[subexpr*2];
+    if (l >= maxlen) {
         if (!(fmt.flags & sign_flag)) {
-            error("Regexp: Matching string \"%s\" too long (%d>%d bytes). You may want to try the + flag: \"%%+/.../\"\n",
-                StreamBuffer(input+ovector[subexpr*2], len).expand()(),
-                (int)len, (int)maxlen-1);
+            error("Regexp: Matching string \"%s\" too long (%d>%ld bytes). You may want to try the + flag: \"%%+/.../\"\n",
+                StreamBuffer(input + ovector[subexpr*2],l).expand()(),
+                l, (long)maxlen-1);
             return -1;
         }
-        len = maxlen-1;
+        l = maxlen-1;
     }
-    memcpy(value, input+ovector[subexpr*2], len);
-    value[len]=0;
-    return ovector[1];
+    memcpy(value, input + ovector[subexpr*2], l);
+    value[l] = '\0';
+    return ovector[1]; // consume input until end of match 
+}
+
+static void regsubst(const StreamFormat& fmt, StreamBuffer& buffer, long start)
+{
+    const char* subst = fmt.info;
+    pcre* code = extract<pcre*>(subst);
+    long length;
+    int rc, l, c, r, rl, n;
+    int ovector[30];
+    StreamBuffer s;
+
+    length = buffer.length() - start;
+    if (fmt.width && fmt.width < length)
+        length = fmt.width;
+    if (fmt.flags & sign_flag)
+        start = buffer.length() - length;
+
+    debug("regsubst buffer=\"%s\", start=%ld, length=%ld, subst = \"%s\"\n",
+        buffer.expand()(), start, length, subst);
+    
+    for (c = 0, n = 1; c < length; n++)
+    {
+        rc = pcre_exec(code, NULL, buffer(start+c), length-c, 0, 0, ovector, 30);
+        debug("pcre_exec match \"%.*s\" result = %d\n", (int)length-c, buffer(start+c), rc);
+        if (rc < 0) // no match 
+            return;
+            
+        if (!(fmt.flags & sign_flag) && n < fmt.prec) // without + flag
+        {
+            // do not yet replace this match
+            c += ovector[1];
+            continue;
+        }
+        // replace & by match in subst
+        l = ovector[1] - ovector[0];
+        debug("start = \"%s\"\n", buffer(start+c));
+        debug("match = \"%.*s\"\n", l, buffer(start+c+ovector[0]));
+        for (r = 1; r < rc; r++)
+            debug("sub%d = \"%.*s\"\n", r, ovector[r*2+1]-ovector[r*2], buffer(start+c+ovector[r*2]));
+        debug("rest  = \"%s\"\n", buffer(start+c+ovector[1]));
+        s = subst;
+        debug("subs = \"%s\"\n", s.expand()());
+        for (r = 0; r < s.length(); r++)
+        {
+            debug("check \"%s\"\n", s.expand(r)());
+            if (s[r] == esc)
+            {
+                unsigned char ch = s[r+1];
+                if (ch < 9) // escaped 0 - 9 : replace with subexpr
+                {
+                    ch *= 2;
+                    rl = ovector[ch+1] - ovector[ch];
+                    debug("replace \\%d: \"%.*s\"\n", ch/2, rl, buffer(start+c+ovector[ch]));
+                    s.replace(r, 2, buffer(start+c+ovector[ch]), rl);
+                    r += rl - 1;
+                }
+                else
+                    s.remove(r, 1); // just remove escape
+            }
+            else if (s[r] == '&') // unescaped & : replace with match
+            {
+                debug("replace &: \"%.*s\"\n", l,  buffer(start+c+ovector[0]));
+                s.replace(r, 1, buffer(start+c+ovector[0]), l);
+                r += l - 1;
+            }
+            else continue;
+            debug("subs = \"%s\"\n", s());
+        }
+        buffer.replace(start+c+ovector[0], l, s);
+        length += s.length() - l;
+        c += s.length();
+        if (n == fmt.prec) // max match reached
+            return;
+    }
+}
+
+int RegexpConverter::
+scanPseudo(const StreamFormat& fmt, StreamBuffer& input, long& cursor)
+{
+    /* re-write input buffer */
+    regsubst(fmt, input, cursor);
+    return 0;
+}
+
+bool RegexpConverter::
+printPseudo(const StreamFormat& fmt, StreamBuffer& output)
+{
+    /* re-write output buffer */
+    regsubst(fmt, output, 0);
+    return true;
 }
 
 RegisterConverter (RegexpConverter, "/");

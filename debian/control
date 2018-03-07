@@ -1,7 +1,7 @@
 Source: epics-stream
 Section: libdevel
 Priority: extra
-Maintainer: Michael Davidsaver <mdavidsaver@gmail.com>
+Maintainer: Martin Konrad <konrad@frib.msu.edu>
 Build-Depends: debhelper (>= 9), epics-debhelper (>= 8.14~),
                libpcre3-dev,
                epics-dev, epics-calc-dev, epics-asyn-dev,
@@ -21,7 +21,7 @@ Vcs-Browser: https://github.com/epicsdeb/stream
 
 Package: epics-stream-dev
 Architecture: any
-Depends: libepics-stream2.6 (= ${binary:Version}),libpcre3-dev,
+Depends: libstream2.7.7 (= ${binary:Version}),libpcre3-dev,
          ${shlibs:Depends}, ${misc:Depends},
          ${epics:Depends},
 Conflicts: epics-synapps, epics-synapps-dev,
@@ -30,7 +30,7 @@ Description: 'expect' for EPICS
  .
  This package contains headers and libraries needed at build time.
 
-Package: libepics-stream2.6
+Package: libstream2.7.7
 Architecture: any
 Depends: ${shlibs:Depends}, ${misc:Depends},
 Description: 'expect' for EPICS

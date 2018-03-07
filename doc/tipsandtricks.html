@@ -10,7 +10,7 @@
 </head>
 <body>
 <iframe src="nav.html" id="navleft"></iframe>
-<h1>StreamDevice: Tips and Tricks</h1>
+<h1>Tips and Tricks</h1>
 
 <a name="argvar"></a>
 <h2>I have many almost identical protocols</h2>
@@ -281,7 +281,7 @@ With some more records, you can clean the message record if SEVR is not INVALID.
 <code>
 record (calcout, "$(DEVICE):clean_1") {<br>
 &nbsp;&nbsp;field (INPA, "$(DEVICE):readcurrent.SEVR CP")<br>
-&nbsp;&nbsp;field (CALC, "A!=2")<br>
+&nbsp;&nbsp;field (CALC, "A#3")<br>
 &nbsp;&nbsp;field (OOPT, "When Non-zero")<br>
 &nbsp;&nbsp;field (OUT,  "$(DEVICE):clean_2.PROC")<br>
 }<br>

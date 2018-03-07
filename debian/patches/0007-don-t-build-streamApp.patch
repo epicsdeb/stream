@@ -21,10 +21,10 @@ index efe17bb..3487cfb 100644
  include $(CONFIG)/RULES_TOP
  
 diff --git a/streamApp/Makefile b/streamApp/Makefile
-index 2e1398f..8668211 100644
+index 4ab0372..88e6443 100644
 --- a/streamApp/Makefile
 +++ b/streamApp/Makefile
-@@ -33,6 +33,8 @@ ifneq ($(words $(CALC) $(SYNAPPS)), 0)
+@@ -35,6 +35,8 @@ ifneq ($(words $(CALC) $(SYNAPPS)), 0)
  streamApp_DBD += calcSupport.dbd
  streamApp_DBD += streamSynApps.dbd
  PROD_LIBS += calc

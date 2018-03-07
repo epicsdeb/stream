@@ -7,10 +7,10 @@ Subject: no clean:: for Base 3.15
  1 file changed, 1 insertion(+), 1 deletion(-)
 
 diff --git a/streamApp/Makefile b/streamApp/Makefile
-index d9dd0ba..2e1398f 100644
+index a8ffdc0..4ab0372 100644
 --- a/streamApp/Makefile
 +++ b/streamApp/Makefile
-@@ -58,7 +58,7 @@ CPPFLAGS += -DDEBUGFILE=StreamDebug.log
+@@ -60,7 +60,7 @@ CPPFLAGS += -DDEBUGFILE=StreamDebug.log
  
  include $(TOP)/configure/RULES
  
