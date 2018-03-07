@@ -21,6 +21,7 @@
 
 #include <stdlib.h>
 #include <ctype.h>
+#include <limits.h>
 #include "StreamFormatConverter.h"
 #include "StreamError.h"
 
@@ -37,7 +38,7 @@ parseFormat(const char*& source, FormatType formatType, StreamFormat& streamForm
 {
 /*
     source := [flags] [width] ['.' prec] conv [extra]
-    flags := '-' | '+' | ' ' | '#' | '0' | '*' | '?' | '='
+    flags := '-' | '+' | ' ' | '#' | '0' | '*' | '?' | '=' | '!'
     width := integer
     prec :=  integer
     conv := character
@@ -83,6 +84,15 @@ parseFormat(const char*& source, FormatType formatType, StreamFormat& streamForm
                     return false;
                 }
                 streamFormat.flags |= default_flag;
+                break;
+            case '!':
+                if (formatType != ScanFormat)
+                {
+                    error("Use of fixed width modifier '!' "
+                          "only allowed in input formats\n");
+                    return false;
+                }
+                streamFormat.flags |= fix_width_flag;
                 break;
             case '=':
                 if (formatType != ScanFormat)
@@ -310,12 +320,16 @@ parse(const StreamFormat& fmt, StreamBuffer& info,
         info.append('l');
         info.append(fmt.conv);
     }
-    return long_format;
+    if (fmt.conv == 'd' || fmt.conv == 'i') return signed_format;
+    return unsigned_format;
 }
 
 bool StdLongConverter::
 printLong(const StreamFormat& fmt, StreamBuffer& output, long value)
 {
+    // limits %x/%X formats to number of half bytes in width.
+    if (fmt.width && (fmt.conv == 'x' || fmt.conv == 'X') && fmt.width < 2*sizeof(long))
+        value &= ~(-1L << (fmt.width*4));
     output.print(fmt.info, value);
     return true;
 }
@@ -327,6 +341,7 @@ scanLong(const StreamFormat& fmt, const char* input, long& value)
     int length;
     bool neg;
     int base;
+    long v;
 
     length = prepareval(fmt, input, neg);
     if (length < 0) return -1;
@@ -336,14 +351,11 @@ scanLong(const StreamFormat& fmt, const char* input, long& value)
             base = 10;
             break;
         case 'o':
-            base = 8;
-            goto signcheck;
         case 'x':
         case 'X':
-            base = 16;
-signcheck:
-        // allow negative hex and oct numbers with - flag
+            // allow negative hex and oct numbers with - flag
             if (neg && !(fmt.flags & left_flag)) return -1;
+            base = (fmt.conv == 'o') ? 8 : 16;
             break;
         case 'u':
             if (neg) return -1;
@@ -352,10 +364,10 @@ signcheck:
         default:
             base = 0;
     }
-    value = strtoul(input, &end, base);
-    if (neg) value = -value;
+    v = strtoul(input, &end, base);
     if (end == input) return -1;
     length += end-input;
+    value = neg ? -v : v;
     return length;
 }
 
@@ -543,7 +555,7 @@ parse(const StreamFormat& fmt, StreamBuffer& info,
         info.append("%n");
         return string_format;
     }
-    return long_format;
+    return unsigned_format;
 }
 
 bool StdCharsConverter::

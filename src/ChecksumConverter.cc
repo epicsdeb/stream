@@ -22,17 +22,26 @@
 #include "StreamError.h"
 #if defined(__vxworks) || defined(vxWorks) || defined(_WIN32) || defined(__rtems__)
 // These systems have no strncasecmp
+#include <epicsVersion.h>
+#ifdef BASE_VERSION
+// 3.13
+#include <ctype.h>
+static int strncasecmp(const char *s1, const char *s2, size_t n)
+{
+    int r=0;
+    while (n && (r = toupper(*s1)-toupper(*s2)) == 0) { n--; s1++; s2++; };
+    return r;
+}
+#else
 #include <epicsString.h>
 #define strncasecmp epicsStrnCaseCmp
 #endif
+#endif
 #include <ctype.h>
 
-typedef unsigned long ulong;
-typedef unsigned char uchar;
+typedef unsigned int (*checksumFunc)(const unsigned char* data, unsigned int len,  unsigned int init);
 
-typedef ulong (*checksumFunc)(const uchar* data, ulong len, ulong init);
-
-static ulong sum(const uchar* data, ulong len, ulong sum)
+static unsigned int sum(const unsigned char* data, unsigned int len, unsigned int sum)
 {
     while (len--)
     {
@@ -41,7 +50,7 @@ static ulong sum(const uchar* data, ulong len, ulong sum)
     return sum;
 }
 
-static ulong xor8(const uchar* data, ulong len, ulong sum)
+static unsigned int xor8(const unsigned char* data, unsigned int len, unsigned int sum)
 {
     while (len--)
     {
@@ -50,15 +59,15 @@ static ulong xor8(const uchar* data, ulong len, ulong sum)
     return sum;
 }
 
-static ulong xor7(const uchar* data, ulong len, ulong sum)
+static unsigned int xor7(const unsigned char* data, unsigned int len, unsigned int sum)
 {
     return xor8(data, len, sum) & 0x7F;
 }
 
-static ulong crc_0x07(const uchar* data, ulong len, ulong crc)
+static unsigned int crc_0x07(const unsigned char* data, unsigned int len, unsigned int crc)
 {
     // x^8 + x^2 + x^1 + x^0 (0x07)
-    const static uchar table[256] = {
+    const static unsigned char table[256] = {
         0x00, 0x07, 0x0E, 0x09, 0x1C, 0x1B, 0x12, 0x15,
         0x38, 0x3F, 0x36, 0x31, 0x24, 0x23, 0x2A, 0x2D,
         0x70, 0x77, 0x7E, 0x79, 0x6C, 0x6B, 0x62, 0x65,
@@ -96,10 +105,10 @@ static ulong crc_0x07(const uchar* data, ulong len, ulong crc)
     return crc;
 }
 
-static ulong crc_0x31(const uchar* data, ulong len, ulong crc)
+static unsigned int crc_0x31(const unsigned char* data, unsigned int len, unsigned int crc)
 {
     // x^8 + x^5 + x^4 + x^0 (0x31)
-    const static uchar table[256] = {
+    const static unsigned char table[256] = {
         0x00, 0x5e, 0xbc, 0xe2, 0x61, 0x3f, 0xdd, 0x83,
         0xc2, 0x9c, 0x7e, 0x20, 0xa3, 0xfd, 0x1f, 0x41,
         0x9d, 0xc3, 0x21, 0x7f, 0xfc, 0xa2, 0x40, 0x1e,
@@ -137,90 +146,90 @@ static ulong crc_0x31(const uchar* data, ulong len, ulong crc)
     return crc;
 }
 
-static ulong crc_0x8005(const uchar* data, ulong len, ulong crc)
+static unsigned int crc_0x8005(const unsigned char* data, unsigned int len, unsigned int crc)
 {
     // x^16 + x^15 + x^2 + x^0  (0x8005)
     const static unsigned short table[256] = {
-        0x0000,0x8005,0x800f,0x000a,0x801b,0x001e,0x0014,0x8011,
-        0x8033,0x0036,0x003c,0x8039,0x0028,0x802d,0x8027,0x0022,
-        0x8063,0x0066,0x006c,0x8069,0x0078,0x807d,0x8077,0x0072,
-        0x0050,0x8055,0x805f,0x005a,0x804b,0x004e,0x0044,0x8041,
-        0x80c3,0x00c6,0x00cc,0x80c9,0x00d8,0x80dd,0x80d7,0x00d2,
-        0x00f0,0x80f5,0x80ff,0x00fa,0x80eb,0x00ee,0x00e4,0x80e1,
-        0x00a0,0x80a5,0x80af,0x00aa,0x80bb,0x00be,0x00b4,0x80b1,
-        0x8093,0x0096,0x009c,0x8099,0x0088,0x808d,0x8087,0x0082,
-        0x8183,0x0186,0x018c,0x8189,0x0198,0x819d,0x8197,0x0192,
-        0x01b0,0x81b5,0x81bf,0x01ba,0x81ab,0x01ae,0x01a4,0x81a1,
-        0x01e0,0x81e5,0x81ef,0x01ea,0x81fb,0x01fe,0x01f4,0x81f1,
-        0x81d3,0x01d6,0x01dc,0x81d9,0x01c8,0x81cd,0x81c7,0x01c2,
-        0x0140,0x8145,0x814f,0x014a,0x815b,0x015e,0x0154,0x8151,
-        0x8173,0x0176,0x017c,0x8179,0x0168,0x816d,0x8167,0x0162,
-        0x8123,0x0126,0x012c,0x8129,0x0138,0x813d,0x8137,0x0132,
-        0x0110,0x8115,0x811f,0x011a,0x810b,0x010e,0x0104,0x8101,
-        0x8303,0x0306,0x030c,0x8309,0x0318,0x831d,0x8317,0x0312,
-        0x0330,0x8335,0x833f,0x033a,0x832b,0x032e,0x0324,0x8321,
-        0x0360,0x8365,0x836f,0x036a,0x837b,0x037e,0x0374,0x8371,
-        0x8353,0x0356,0x035c,0x8359,0x0348,0x834d,0x8347,0x0342,
-        0x03c0,0x83c5,0x83cf,0x03ca,0x83db,0x03de,0x03d4,0x83d1,
-        0x83f3,0x03f6,0x03fc,0x83f9,0x03e8,0x83ed,0x83e7,0x03e2,
-        0x83a3,0x03a6,0x03ac,0x83a9,0x03b8,0x83bd,0x83b7,0x03b2,
-        0x0390,0x8395,0x839f,0x039a,0x838b,0x038e,0x0384,0x8381,
-        0x0280,0x8285,0x828f,0x028a,0x829b,0x029e,0x0294,0x8291,
-        0x82b3,0x02b6,0x02bc,0x82b9,0x02a8,0x82ad,0x82a7,0x02a2,
-        0x82e3,0x02e6,0x02ec,0x82e9,0x02f8,0x82fd,0x82f7,0x02f2,
-        0x02d0,0x82d5,0x82df,0x02da,0x82cb,0x02ce,0x02c4,0x82c1,
-        0x8243,0x0246,0x024c,0x8249,0x0258,0x825d,0x8257,0x0252,
-        0x0270,0x8275,0x827f,0x027a,0x826b,0x026e,0x0264,0x8261,
-        0x0220,0x8225,0x822f,0x022a,0x823b,0x023e,0x0234,0x8231,
-        0x8213,0x0216,0x021c,0x8219,0x0208,0x820d,0x8207,0x0202 };
+        0x0000, 0x8005, 0x800f, 0x000a, 0x801b, 0x001e, 0x0014, 0x8011,
+        0x8033, 0x0036, 0x003c, 0x8039, 0x0028, 0x802d, 0x8027, 0x0022,
+        0x8063, 0x0066, 0x006c, 0x8069, 0x0078, 0x807d, 0x8077, 0x0072,
+        0x0050, 0x8055, 0x805f, 0x005a, 0x804b, 0x004e, 0x0044, 0x8041,
+        0x80c3, 0x00c6, 0x00cc, 0x80c9, 0x00d8, 0x80dd, 0x80d7, 0x00d2,
+        0x00f0, 0x80f5, 0x80ff, 0x00fa, 0x80eb, 0x00ee, 0x00e4, 0x80e1,
+        0x00a0, 0x80a5, 0x80af, 0x00aa, 0x80bb, 0x00be, 0x00b4, 0x80b1,
+        0x8093, 0x0096, 0x009c, 0x8099, 0x0088, 0x808d, 0x8087, 0x0082,
+        0x8183, 0x0186, 0x018c, 0x8189, 0x0198, 0x819d, 0x8197, 0x0192,
+        0x01b0, 0x81b5, 0x81bf, 0x01ba, 0x81ab, 0x01ae, 0x01a4, 0x81a1,
+        0x01e0, 0x81e5, 0x81ef, 0x01ea, 0x81fb, 0x01fe, 0x01f4, 0x81f1,
+        0x81d3, 0x01d6, 0x01dc, 0x81d9, 0x01c8, 0x81cd, 0x81c7, 0x01c2,
+        0x0140, 0x8145, 0x814f, 0x014a, 0x815b, 0x015e, 0x0154, 0x8151,
+        0x8173, 0x0176, 0x017c, 0x8179, 0x0168, 0x816d, 0x8167, 0x0162,
+        0x8123, 0x0126, 0x012c, 0x8129, 0x0138, 0x813d, 0x8137, 0x0132,
+        0x0110, 0x8115, 0x811f, 0x011a, 0x810b, 0x010e, 0x0104, 0x8101,
+        0x8303, 0x0306, 0x030c, 0x8309, 0x0318, 0x831d, 0x8317, 0x0312,
+        0x0330, 0x8335, 0x833f, 0x033a, 0x832b, 0x032e, 0x0324, 0x8321,
+        0x0360, 0x8365, 0x836f, 0x036a, 0x837b, 0x037e, 0x0374, 0x8371,
+        0x8353, 0x0356, 0x035c, 0x8359, 0x0348, 0x834d, 0x8347, 0x0342,
+        0x03c0, 0x83c5, 0x83cf, 0x03ca, 0x83db, 0x03de, 0x03d4, 0x83d1,
+        0x83f3, 0x03f6, 0x03fc, 0x83f9, 0x03e8, 0x83ed, 0x83e7, 0x03e2,
+        0x83a3, 0x03a6, 0x03ac, 0x83a9, 0x03b8, 0x83bd, 0x83b7, 0x03b2,
+        0x0390, 0x8395, 0x839f, 0x039a, 0x838b, 0x038e, 0x0384, 0x8381,
+        0x0280, 0x8285, 0x828f, 0x028a, 0x829b, 0x029e, 0x0294, 0x8291,
+        0x82b3, 0x02b6, 0x02bc, 0x82b9, 0x02a8, 0x82ad, 0x82a7, 0x02a2,
+        0x82e3, 0x02e6, 0x02ec, 0x82e9, 0x02f8, 0x82fd, 0x82f7, 0x02f2,
+        0x02d0, 0x82d5, 0x82df, 0x02da, 0x82cb, 0x02ce, 0x02c4, 0x82c1,
+        0x8243, 0x0246, 0x024c, 0x8249, 0x0258, 0x825d, 0x8257, 0x0252,
+        0x0270, 0x8275, 0x827f, 0x027a, 0x826b, 0x026e, 0x0264, 0x8261,
+        0x0220, 0x8225, 0x822f, 0x022a, 0x823b, 0x023e, 0x0234, 0x8231,
+        0x8213, 0x0216, 0x021c, 0x8219, 0x0208, 0x820d, 0x8207, 0x0202 };
 
     while (len--) crc = table[((crc>>8) ^ *data++) & 0xFF] ^ (crc << 8);
     return crc;
 }
 
-static ulong crc_0x8005_r(const uchar* data, ulong len, ulong crc)
+static unsigned int crc_0x8005_r(const unsigned char* data, unsigned int len, unsigned int crc)
 {
     // x^16 + x^15 + x^2 + x^0  (0x8005)
     // reflected
     const static unsigned short table[256] = {
-        0x0000,0xC0C1,0xC181,0x0140,0xC301,0x03C0,0x0280,0xC241,
-        0xC601,0x06C0,0x0780,0xC741,0x0500,0xC5C1,0xC481,0x0440,
-        0xCC01,0x0CC0,0x0D80,0xCD41,0x0F00,0xCFC1,0xCE81,0x0E40,
-        0x0A00,0xCAC1,0xCB81,0x0B40,0xC901,0x09C0,0x0880,0xC841,
-        0xD801,0x18C0,0x1980,0xD941,0x1B00,0xDBC1,0xDA81,0x1A40,
-        0x1E00,0xDEC1,0xDF81,0x1F40,0xDD01,0x1DC0,0x1C80,0xDC41,
-        0x1400,0xD4C1,0xD581,0x1540,0xD701,0x17C0,0x1680,0xD641,
-        0xD201,0x12C0,0x1380,0xD341,0x1100,0xD1C1,0xD081,0x1040,
-        0xF001,0x30C0,0x3180,0xF141,0x3300,0xF3C1,0xF281,0x3240,
-        0x3600,0xF6C1,0xF781,0x3740,0xF501,0x35C0,0x3480,0xF441,
-        0x3C00,0xFCC1,0xFD81,0x3D40,0xFF01,0x3FC0,0x3E80,0xFE41,
-        0xFA01,0x3AC0,0x3B80,0xFB41,0x3900,0xF9C1,0xF881,0x3840,
-        0x2800,0xE8C1,0xE981,0x2940,0xEB01,0x2BC0,0x2A80,0xEA41,
-        0xEE01,0x2EC0,0x2F80,0xEF41,0x2D00,0xEDC1,0xEC81,0x2C40,
-        0xE401,0x24C0,0x2580,0xE541,0x2700,0xE7C1,0xE681,0x2640,
-        0x2200,0xE2C1,0xE381,0x2340,0xE101,0x21C0,0x2080,0xE041,
-        0xA001,0x60C0,0x6180,0xA141,0x6300,0xA3C1,0xA281,0x6240,
-        0x6600,0xA6C1,0xA781,0x6740,0xA501,0x65C0,0x6480,0xA441,
-        0x6C00,0xACC1,0xAD81,0x6D40,0xAF01,0x6FC0,0x6E80,0xAE41,
-        0xAA01,0x6AC0,0x6B80,0xAB41,0x6900,0xA9C1,0xA881,0x6840,
-        0x7800,0xB8C1,0xB981,0x7940,0xBB01,0x7BC0,0x7A80,0xBA41,
-        0xBE01,0x7EC0,0x7F80,0xBF41,0x7D00,0xBDC1,0xBC81,0x7C40,
-        0xB401,0x74C0,0x7580,0xB541,0x7700,0xB7C1,0xB681,0x7640,
-        0x7200,0xB2C1,0xB381,0x7340,0xB101,0x71C0,0x7080,0xB041,
-        0x5000,0x90C1,0x9181,0x5140,0x9301,0x53C0,0x5280,0x9241,
-        0x9601,0x56C0,0x5780,0x9741,0x5500,0x95C1,0x9481,0x5440,
-        0x9C01,0x5CC0,0x5D80,0x9D41,0x5F00,0x9FC1,0x9E81,0x5E40,
-        0x5A00,0x9AC1,0x9B81,0x5B40,0x9901,0x59C0,0x5880,0x9841,
-        0x8801,0x48C0,0x4980,0x8941,0x4B00,0x8BC1,0x8A81,0x4A40,
-        0x4E00,0x8EC1,0x8F81,0x4F40,0x8D01,0x4DC0,0x4C80,0x8C41,
-        0x4400,0x84C1,0x8581,0x4540,0x8701,0x47C0,0x4680,0x8641,
-        0x8201,0x42C0,0x4380,0x8341,0x4100,0x81C1,0x8081,0x4040 };
+        0x0000, 0xC0C1, 0xC181, 0x0140, 0xC301, 0x03C0, 0x0280, 0xC241,
+        0xC601, 0x06C0, 0x0780, 0xC741, 0x0500, 0xC5C1, 0xC481, 0x0440,
+        0xCC01, 0x0CC0, 0x0D80, 0xCD41, 0x0F00, 0xCFC1, 0xCE81, 0x0E40,
+        0x0A00, 0xCAC1, 0xCB81, 0x0B40, 0xC901, 0x09C0, 0x0880, 0xC841,
+        0xD801, 0x18C0, 0x1980, 0xD941, 0x1B00, 0xDBC1, 0xDA81, 0x1A40,
+        0x1E00, 0xDEC1, 0xDF81, 0x1F40, 0xDD01, 0x1DC0, 0x1C80, 0xDC41,
+        0x1400, 0xD4C1, 0xD581, 0x1540, 0xD701, 0x17C0, 0x1680, 0xD641,
+        0xD201, 0x12C0, 0x1380, 0xD341, 0x1100, 0xD1C1, 0xD081, 0x1040,
+        0xF001, 0x30C0, 0x3180, 0xF141, 0x3300, 0xF3C1, 0xF281, 0x3240,
+        0x3600, 0xF6C1, 0xF781, 0x3740, 0xF501, 0x35C0, 0x3480, 0xF441,
+        0x3C00, 0xFCC1, 0xFD81, 0x3D40, 0xFF01, 0x3FC0, 0x3E80, 0xFE41,
+        0xFA01, 0x3AC0, 0x3B80, 0xFB41, 0x3900, 0xF9C1, 0xF881, 0x3840,
+        0x2800, 0xE8C1, 0xE981, 0x2940, 0xEB01, 0x2BC0, 0x2A80, 0xEA41,
+        0xEE01, 0x2EC0, 0x2F80, 0xEF41, 0x2D00, 0xEDC1, 0xEC81, 0x2C40,
+        0xE401, 0x24C0, 0x2580, 0xE541, 0x2700, 0xE7C1, 0xE681, 0x2640,
+        0x2200, 0xE2C1, 0xE381, 0x2340, 0xE101, 0x21C0, 0x2080, 0xE041,
+        0xA001, 0x60C0, 0x6180, 0xA141, 0x6300, 0xA3C1, 0xA281, 0x6240,
+        0x6600, 0xA6C1, 0xA781, 0x6740, 0xA501, 0x65C0, 0x6480, 0xA441,
+        0x6C00, 0xACC1, 0xAD81, 0x6D40, 0xAF01, 0x6FC0, 0x6E80, 0xAE41,
+        0xAA01, 0x6AC0, 0x6B80, 0xAB41, 0x6900, 0xA9C1, 0xA881, 0x6840,
+        0x7800, 0xB8C1, 0xB981, 0x7940, 0xBB01, 0x7BC0, 0x7A80, 0xBA41,
+        0xBE01, 0x7EC0, 0x7F80, 0xBF41, 0x7D00, 0xBDC1, 0xBC81, 0x7C40,
+        0xB401, 0x74C0, 0x7580, 0xB541, 0x7700, 0xB7C1, 0xB681, 0x7640,
+        0x7200, 0xB2C1, 0xB381, 0x7340, 0xB101, 0x71C0, 0x7080, 0xB041,
+        0x5000, 0x90C1, 0x9181, 0x5140, 0x9301, 0x53C0, 0x5280, 0x9241,
+        0x9601, 0x56C0, 0x5780, 0x9741, 0x5500, 0x95C1, 0x9481, 0x5440,
+        0x9C01, 0x5CC0, 0x5D80, 0x9D41, 0x5F00, 0x9FC1, 0x9E81, 0x5E40,
+        0x5A00, 0x9AC1, 0x9B81, 0x5B40, 0x9901, 0x59C0, 0x5880, 0x9841,
+        0x8801, 0x48C0, 0x4980, 0x8941, 0x4B00, 0x8BC1, 0x8A81, 0x4A40,
+        0x4E00, 0x8EC1, 0x8F81, 0x4F40, 0x8D01, 0x4DC0, 0x4C80, 0x8C41,
+        0x4400, 0x84C1, 0x8581, 0x4540, 0x8701, 0x47C0, 0x4680, 0x8641,
+        0x8201, 0x42C0, 0x4380, 0x8341, 0x4100, 0x81C1, 0x8081, 0x4040 };
 
     while (len--) crc = table[(crc ^ *data++) & 0xFF] ^ (crc >> 8);
     return crc;
 }
 
-static ulong crc_0x1021(const uchar* data, ulong len, ulong crc)
+static unsigned int crc_0x1021(const unsigned char* data, unsigned int len, unsigned int crc)
 {
     // x^16 + x^12 + x^5 + x^0 (0x1021)
     const static unsigned short table[256] = {
@@ -261,7 +270,7 @@ static ulong crc_0x1021(const uchar* data, ulong len, ulong crc)
     return crc;
 }
 
-static ulong crc_0x04C11DB7(const uchar* data, ulong len, ulong crc)
+static unsigned int crc_0x04C11DB7(const unsigned char* data, unsigned int len, unsigned int crc)
 {
     // x^32 + x^26 + x^23 + x^22 + x^16 + x^12 + x^11 + x^10 +
     //    x^8 + x^7 + x^5 + x^4 + x^2 + x^1 + x^0  (0x04C11DB7)
@@ -335,7 +344,7 @@ static ulong crc_0x04C11DB7(const uchar* data, ulong len, ulong crc)
     return crc;
 }
 
-static ulong crc_0x04C11DB7_r(const uchar* data, ulong len, ulong crc)
+static unsigned int crc_0x04C11DB7_r(const unsigned char* data, unsigned int len, unsigned int crc)
 {
     // x^32 + x^26 + x^23 + x^22 + x^16 + x^12 + x^11 + x^10 +
     //    x^8 + x^7 + x^5 + x^4 + x^2 + x^1 + x^0  (0x04C11DB7)
@@ -410,13 +419,13 @@ static ulong crc_0x04C11DB7_r(const uchar* data, ulong len, ulong crc)
     return crc;
 }
 
-static ulong adler32(const uchar* data, ulong len, ulong init)
+static unsigned int adler32(const unsigned char* data, unsigned int len, unsigned int init)
 {
-    ulong a = init & 0xFFFF;
-    ulong b = (init >> 16) & 0xFFFF;
+    unsigned int a = init & 0xFFFF;
+    unsigned int b = (init >> 16) & 0xFFFF;
 
     while (len) {
-        ulong tlen = len > 5550 ? 5550 : len;
+        unsigned int tlen = len > 5550 ? 5550 : len;
         len -= tlen;
         do {
             a += *data++;
@@ -431,10 +440,10 @@ static ulong adler32(const uchar* data, ulong len, ulong init)
    return b << 16 | a;
 }
 
-static ulong hexsum(const uchar* data, ulong len, ulong sum)
+static unsigned int hexsum(const unsigned char* data, unsigned int len, unsigned int sum)
 {
     // Add all hex digits, ignore all other bytes.
-    ulong d; 
+    unsigned int d; 
     while (len--)
     {
         d = toupper(*data++);
@@ -452,8 +461,8 @@ struct checksum
 {
     const char* name;
     checksumFunc func;
-    ulong init;
-    ulong xorout;
+    unsigned int init;
+    unsigned int xorout;
     signed char bytes;
 };
 
@@ -465,20 +474,6 @@ static checksum checksumMap[] =
     {"sum8",    sum,              0x00,       0x00,       1}, // 0xDD
     {"sum16",   sum,              0x0000,     0x0000,     2}, // 0x01DD
     {"sum32",   sum,              0x00000000, 0x00000000, 4}, // 0x000001DD
-    {"nsum",    sum,              0xFF,       0xFF,       1}, // 0x23
-    {"negsum",  sum,              0xFF,       0xFF,       1}, // 0x23
-    {"-sum",    sum,              0xFF,       0xFF,       1}, // 0x23
-    {"nsum8",   sum,              0xFF,       0xFF,       1}, // 0x23
-    {"negsum8", sum,              0xFF,       0xFF,       1}, // 0x23
-    {"-sum8",   sum,              0xFF,       0xFF,       1}, // 0x23
-    {"nsum16",  sum,              0xFFFF,     0xFFFF,     2}, // 0xFE23
-    {"negsum16",sum,              0xFFFF,     0xFFFF,     2}, // 0xFE23
-    {"-sum16",  sum,              0xFFFF,     0xFFFF,     2}, // 0xFE23
-    {"nsum32",  sum,              0xFFFFFFFF, 0xFFFFFFFF, 4}, // 0xFFFFFE23
-    {"negsum32",sum,              0xFFFFFFFF, 0xFFFFFFFF, 4}, // 0xFFFFFE23
-    {"-sum32",  sum,              0xFFFFFFFF, 0xFFFFFFFF, 4}, // 0xFFFFFE23
-    {"notsum",  sum,              0x00,       0xFF,       1}, // 0x22
-    {"~sum",    sum,              0x00,       0xFF,       1}, // 0x22
     {"xor",     xor8,             0x00,       0x00,       1}, // 0x31
     {"xor8",    xor8,             0x00,       0x00,       1}, // 0x31
     {"xor7",    xor7,             0x00,       0x00,       1}, // 0x31
@@ -486,6 +481,7 @@ static checksum checksumMap[] =
     {"ccitt8",  crc_0x31,         0x00,       0x00,       1}, // 0xA1
     {"crc16",   crc_0x8005,       0x0000,     0x0000,     2}, // 0xFEE8
     {"crc16r",  crc_0x8005_r,     0x0000,     0x0000,     2}, // 0xBB3D
+    {"modbus",  crc_0x8005_r,     0xFFFF,     0x0000,     2}, // 0x4B37
     {"ccitt16", crc_0x1021,       0xFFFF,     0x0000,     2}, // 0x29B1
     {"ccitt16a",crc_0x1021,       0x1D0F,     0x0000,     2}, // 0xE5CC
     {"ccitt16x",crc_0x1021,       0x0000,     0x0000,     2}, // 0x31C3
@@ -498,7 +494,7 @@ static checksum checksumMap[] =
     {"hexsum8", hexsum,           0x00,       0x00,       1}  // 0x2D
 };
 
-static ulong mask[5] = {0, 0xFF, 0xFFFF, 0xFFFFFF, 0xFFFFFFFF};
+static unsigned int mask[5] = {0, 0xFF, 0xFFFF, 0xFFFFFF, 0xFFFFFFFF};
 
 class ChecksumConverter : public StreamFormatConverter
 {
@@ -517,39 +513,80 @@ parse(const StreamFormat&, StreamBuffer& info, const char*& source, bool)
         return false;
     }
 
-    size_t fnum;
+    bool negflag=false;
+    bool notflag=false;
+    if (*source == '-')
+    {
+        source++;
+        negflag = true;
+    }
+    if (strncasecmp(source, "neg", 3) == 0)
+    {
+        source+=3;
+        negflag = true;
+    }
+    if (*source == '~')
+    {
+        source++;
+        notflag = true;
+    }
+    if (strncasecmp(source, "not", 3) == 0)
+    {
+        source+=3;
+        notflag = true;
+    }
+    unsigned  fnum;
+    int len = p-source;
+    unsigned int init, xorout;
     for (fnum = 0; fnum < sizeof(checksumMap)/sizeof(checksum); fnum++)
     {
-        if (strncasecmp(source, checksumMap[fnum].name, p-source) == 0)
+        if ((strncasecmp(source, checksumMap[fnum].name, len) == 0) ||
+            (*source == 'n' && len > 1 && strncasecmp(source+1, checksumMap[fnum].name, len-1) == 0 && (negflag = true)))
         {
+            init = checksumMap[fnum].init;
+            xorout = checksumMap[fnum].xorout;
+            if (negflag)
+            {
+                init = ~init;
+                xorout = ~xorout;
+            }
+            if (notflag)
+            {
+                xorout = ~xorout;
+            }
+            info.append(&init,  sizeof(init));
+            info.append(&xorout, sizeof(xorout));
             info.append(fnum);
             source = p+1;
             return pseudo_format;
         }
     }
 
-    error ("Unknown checksum algorithm \"%.*s\"\n",
-        static_cast<int>(p-source), source);
+    error ("Unknown checksum algorithm \"%.*s\"\n", len, source);
     return false;
 }
 
 bool ChecksumConverter::
 printPseudo(const StreamFormat& format, StreamBuffer& output)
 {
-    ulong sum;
-    int fnum = format.info[0];
+    unsigned int sum;
+    const char* info = format.info;
+    unsigned int init = extract<unsigned int>(info);
+    unsigned int xorout = extract<unsigned int>(info);
+    int fnum = extract<char>(info);
+
     int start = format.width;
     int length = output.length()-format.width;
     if (format.prec > 0) length -= format.prec;
 
     debug("ChecksumConverter %s: output to check: \"%s\"\n",
         checksumMap[fnum].name, output.expand(start,length)());
+        
+    sum = (xorout ^ checksumMap[fnum].func(
+        reinterpret_cast<unsigned char*>(output(start)), length, init))
+        & mask[checksumMap[fnum].bytes];
 
-    sum = (checksumMap[fnum].xorout ^ checksumMap[fnum].func(
-        reinterpret_cast<uchar*>(output(start)), length,
-        checksumMap[fnum].init)) & mask[checksumMap[fnum].bytes];
-
-    debug("ChecksumConverter %s: output checksum is 0x%lX\n",
+    debug("ChecksumConverter %s: output checksum is 0x%X\n",
         checksumMap[fnum].name, sum);
 
     int i;
@@ -559,13 +596,11 @@ printPseudo(const StreamFormat& format, StreamBuffer& output)
     {
         // get number of decimal digits from number of bytes: ceil(xbytes*2.5)
         i = (checksumMap[fnum].bytes+1)*25/10-2;
-        output.print("%0*ld", i, sum);
-        debug("ChecksumConverter %s: decimal appending %0*ld\n",
+        output.print("%0*d", i, sum);
+        debug("ChecksumConverter %s: decimal appending %0*d\n",
             checksumMap[fnum].name, i, sum);
-        return true;
-    }
-    
-    
+    }   
+    else
     if (format.flags & alt_flag) // lsb first (little endian)
     {
         for (i = 0; i < checksumMap[fnum].bytes; i++)
@@ -575,6 +610,10 @@ printPseudo(const StreamFormat& format, StreamBuffer& output)
                 checksumMap[fnum].name, outchar);
             if (format.flags & zero_flag) // ASCII
                 output.print("%02X", outchar);
+            else
+            if (format.flags & left_flag) // poor man's hex: 0x30 - 0x3F
+                output.print("%c%c",
+                    ((outchar>>4)&0x0f)|0x30, (outchar&0x0f)|0x30);
             else                          // binary
                 output.append(outchar);
             sum >>= 8;
@@ -590,6 +629,10 @@ printPseudo(const StreamFormat& format, StreamBuffer& output)
                 checksumMap[fnum].name, outchar);
             if (format.flags & zero_flag) // ASCII
                 output.print("%02X", outchar);
+            else
+            if (format.flags & left_flag) // poor man's hex: 0x30 - 0x3F
+                output.print("%c%c",
+                    ((outchar>>4)&0x0f)|0x30, (outchar&0x0f)|0x30);
             else                          // binary
                 output.append(outchar);
             sum <<= 8;
@@ -601,57 +644,88 @@ printPseudo(const StreamFormat& format, StreamBuffer& output)
 int ChecksumConverter::
 scanPseudo(const StreamFormat& format, StreamBuffer& input, long& cursor)
 {
-    int fnum = format.info[0];
-    ulong sum;
+    unsigned int sum;
+    const char* info = format.info;
+    unsigned int init = extract<unsigned int>(info);
+    unsigned int xorout = extract<unsigned int>(info);
     int start = format.width;
+    int fnum = extract<char>(info);
     int length = cursor-format.width;
+
     if (format.prec > 0) length -= format.prec;
     
     debug("ChecksumConverter %s: input to check: \"%s\n",
         checksumMap[fnum].name, input.expand(start,length)());
 
-    if (input.length() - cursor <
-        (format.flags & zero_flag ? 2 : 1) * checksumMap[fnum].bytes)
+    int expectedLength =
+        // get number of decimal digits from number of bytes: ceil(bytes*2.5)
+        format.flags & sign_flag ? (checksumMap[fnum].bytes + 1) * 25 / 10 - 2 :
+        format.flags & (zero_flag|left_flag) ? 2 * checksumMap[fnum].bytes :
+        checksumMap[fnum].bytes;
+    
+    if (input.length() - cursor < expectedLength)
     {
-        error("Input too short for checksum\n");
+        debug("ChecksumConverter %s: Input '%s' too short for checksum\n",
+            checksumMap[fnum].name, input.expand(cursor)());
         return -1;
     }
 
-    sum = (checksumMap[fnum].xorout ^ checksumMap[fnum].func(
-        reinterpret_cast<uchar*>(input(start)), length,
-        checksumMap[fnum].init)) & mask[checksumMap[fnum].bytes];
+    sum = (xorout ^ checksumMap[fnum].func(
+        reinterpret_cast<unsigned char*>(input(start)), length, init))
+        & mask[checksumMap[fnum].bytes];
 
-    debug("ChecksumConverter %s: input checksum is 0x%0*lX\n",
+    debug("ChecksumConverter %s: input checksum is 0x%0*X\n",
         checksumMap[fnum].name, 2*checksumMap[fnum].bytes, sum);
 
-    int i,j;
+    int i, j;
     unsigned inchar;
     
     if (format.flags & sign_flag) // decimal
     {
-        ulong sumin = 0;
-        // get number of decimal digits from number of bytes: ceil(xbytes*2.5)
-        j = (checksumMap[fnum].bytes+1)*25/10-2;
-        for (i = 0; i < j; i++)
+        unsigned int sumin = 0;
+        for (i = 0; i < expectedLength; i++)
         {
             inchar = input[cursor+i];
             if (isdigit(inchar)) sumin = sumin*10+inchar-'0';
             else break;
         }
-        if (sumin==sum) return i;
-        error("Input %0*lu does not match checksum %0*lu\n", 
-            i, sumin, j, sum);
-        return -1;
+        if (sumin != sum)
+        {
+            debug("ChecksumConverter %s: Input %0*u does not match checksum %0*u\n", 
+                checksumMap[fnum].name, i, sumin, expectedLength, sum);
+            return -1;
+        }
     }
-    
-    
+    else    
     if (format.flags & alt_flag) // lsb first (little endian)
     {
         for (i = 0; i < checksumMap[fnum].bytes; i++)
         {
             if (format.flags & zero_flag) // ASCII
             {
-                sscanf(input(cursor+2*i), "%2X", &inchar);
+                if (sscanf(input(cursor+2*i), "%2X", &inchar) != 1)
+                {
+                    debug("ChecksumConverter %s: Input byte '%s' is not a hex byte\n", 
+                        checksumMap[fnum].name, input.expand(cursor+2*i,2)());
+                    return -1;
+                }
+            }
+            else
+            if (format.flags & left_flag) // poor man's hex: 0x30 - 0x3F
+            {
+                if ((input[cursor+2*i] & 0xf0) != 0x30)
+                {
+                    debug("ChecksumConverter %s: Input byte 0x%02X is not in range 0x30 - 0x3F\n", 
+                        checksumMap[fnum].name, input[cursor+2*i]);
+                    return -1;
+                }
+                if ((input[cursor+2*i+1] & 0xf0) != 0x30)
+                {
+                    debug("ChecksumConverter %s: Input byte 0x%02X is not in range 0x30 - 0x3F\n", 
+                        checksumMap[fnum].name, input[cursor+2*i+1]);
+                    return -1;
+                }
+                inchar = ((input[cursor+2*i] & 0x0f) << 4) | (input[cursor+2*i+1] & 0x0f);
             }
             else                          // binary
             {
@@ -659,8 +733,8 @@ scanPseudo(const StreamFormat& format, StreamBuffer& input, long& cursor)
             }
             if (inchar != ((sum >> 8*i) & 0xff))
             {
-                error("Input byte 0x%02X does not match checksum 0x%0*lX\n", 
-                    inchar, 2*checksumMap[fnum].bytes, sum);
+                debug("ChecksumConverter %s: Input byte 0x%02X does not match checksum 0x%0*X\n", 
+                    checksumMap[fnum].name, inchar, 2*checksumMap[fnum].bytes, sum);
                 return -1;
             }
         }
@@ -673,21 +747,36 @@ scanPseudo(const StreamFormat& format, StreamBuffer& input, long& cursor)
             {
                 sscanf(input(cursor+2*i), "%2x", &inchar);
             }
+            else
+            if (format.flags & left_flag) // poor man's hex: 0x30 - 0x3F
+            {
+                if ((input[cursor+2*i] & 0xf0) != 0x30)
+                {
+                    debug("ChecksumConverter %s: Input byte 0x%02X is not in range 0x30 - 0x3F\n", 
+                        checksumMap[fnum].name, input[cursor+2*i]);
+                    return -1;
+                }
+                if ((input[cursor+2*i+1] & 0xf0) != 0x30)
+                {
+                    debug("ChecksumConverter %s: Input byte 0x%02X is not in range 0x30 - 0x3F\n", 
+                        checksumMap[fnum].name, input[cursor+2*i+1]);
+                    return -1;
+                }
+                inchar = ((input[cursor+2*i] & 0x0f) << 4) | (input[cursor+2*i+1] & 0x0f);
+            }
             else                          // binary
             {
                 inchar = input[cursor+i] & 0xff;
             }
             if (inchar != ((sum >> 8*j) & 0xff))
             {
-                error("Input byte 0x%02X does not match checksum 0x%0*lX\n",
-                    inchar, 2*checksumMap[fnum].bytes, sum);
+                debug("ChecksumConverter %s: Input byte 0x%02X does not match checksum 0x%0*X\n",
+                    checksumMap[fnum].name, inchar, 2*checksumMap[fnum].bytes, sum);
                 return -1;
             }
         }
     }
-    if (format.flags & zero_flag) // ASCII
-        return 2*checksumMap[fnum].bytes;
-    return checksumMap[fnum].bytes;
+    return expectedLength;
 }
 
 RegisterConverter (ChecksumConverter, "<");

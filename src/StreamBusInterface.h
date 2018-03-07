@@ -21,13 +21,26 @@
 #define StreamBusInterface_h
 
 #include <stddef.h>
+#include <StreamBuffer.h>
 
 enum StreamIoStatus {
     StreamIoSuccess, StreamIoTimeout, StreamIoNoReply,
     StreamIoEnd, StreamIoFault
 };
 
-extern const char* StreamIoStatusStr[];
+class StreamIoStatusStrClass {
+public:
+    const char* operator [] (int index) {
+        switch (index) {
+            case StreamIoSuccess: return "StreamIoSuccess";
+            case StreamIoTimeout: return "StreamIoTimeout";
+            case StreamIoNoReply: return "StreamIoNoReply";
+            case StreamIoEnd:     return "StreamIoEnd";
+            case StreamIoFault:   return "StreamIoFault";
+            default:              return "illegal status";
+        }
+    }
+} extern StreamIoStatusStr;
 
 class StreamBusInterface
 {
@@ -44,70 +57,53 @@ public:
         virtual void connectCallback(StreamIoStatus status);
         virtual void disconnectCallback(StreamIoStatus status);
         virtual long priority();
-        virtual const char* name() = 0;
         virtual const char* getInTerminator(size_t& length) = 0;
         virtual const char* getOutTerminator(size_t& length) = 0;
     public:
+        virtual const char* name() = 0;
         virtual ~Client();
     protected:
         StreamBusInterface* businterface;
         bool busSupportsEvent() {
-            if (businterface)
-                return businterface->supportsEvent();
-            else return false;
+            return businterface && businterface->supportsEvent();
         }
         bool busSupportsAsyncRead() {
-            if (businterface)
-                return businterface->supportsAsyncRead();
-            else return false;
+            return businterface && businterface->supportsAsyncRead();
         }
         bool busAcceptEvent(unsigned long mask,
             unsigned long replytimeout_ms) {
-            if (businterface)
-                return businterface->acceptEvent(mask, replytimeout_ms);
-            else return false;
+            return businterface && businterface->acceptEvent(mask, replytimeout_ms);
         }
         void busRelease() {
-            if (businterface)
-                businterface->release();
+            if (businterface) businterface->release();
         }
         bool busLockRequest(unsigned long timeout_ms) {
-            if (businterface)
-                return businterface->lockRequest(timeout_ms);
-            else return false;
+            return businterface && businterface->lockRequest(timeout_ms);
         }
         bool busUnlock() {
-            if (businterface)
-                return businterface->unlock();
-            else return false;
+            return businterface && businterface->unlock();
         }
         bool busWriteRequest(const void* output, size_t size,
             unsigned long timeout_ms) {
-            if (businterface)
-                return businterface->writeRequest(output, size, timeout_ms);
-            else return false;
+            return businterface && businterface->writeRequest(output, size, timeout_ms);
         }
         bool busReadRequest(unsigned long replytimeout_ms,
             unsigned long readtimeout_ms, long expectedLength,
             bool async) {
-            if (businterface)
-                return businterface->readRequest(replytimeout_ms,
+            return businterface && businterface->readRequest(replytimeout_ms,
                     readtimeout_ms, expectedLength, async);
-            else return false;
         }
         void busFinish() {
-            if (businterface)
-                businterface->finish();
+            if (businterface) businterface->finish();
         }
         bool busConnectRequest(unsigned long timeout_ms) {
-            if (businterface)
-                return businterface->connectRequest(timeout_ms);
-            else return false;
+            return businterface && businterface->connectRequest(timeout_ms);
         }
         bool busDisconnect() {
-            if (businterface)
-                return businterface->disconnectRequest();
-            else return false;
+            return businterface && businterface->disconnectRequest();
+        }
+        void busPrintStatus(StreamBuffer& buffer) {
+            if (businterface) businterface->printStatus(buffer);
         }
     };
 
@@ -157,6 +153,7 @@ protected:
     virtual bool connectRequest(unsigned long connecttimeout_ms);
     virtual bool disconnectRequest();
     virtual void finish();
+    virtual void printStatus(StreamBuffer& buffer) {};
 
 // pure virtual
     virtual bool lockRequest(unsigned long timeout_ms) = 0;

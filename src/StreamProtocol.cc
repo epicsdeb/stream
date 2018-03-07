@@ -26,7 +26,8 @@
 #include "StreamError.h"
 
 const char* StreamFormatTypeStr[] = {
-    "none", "long", "enum", "double", "string", "pseudo"
+    // must match the order in StreamFormat.h
+    "none", "unsigned", "signed", "enum", "double", "string", "pseudo"
 };
 
 class StreamProtocolParser::Protocol::Variable
@@ -1037,7 +1038,7 @@ compileNumber(unsigned long& number, const char*& source, unsigned long max)
             "Garbage after numeric value: %s\n", buffer());
         return false;
     }
-    if (n < 0 || n > max)
+    if (n > max)
     {
         debug("StreamProtocolParser::Protocol::compileNumber: %s\n",
             buffer.expand()());
@@ -1438,7 +1439,7 @@ compileFormat(StreamBuffer& buffer, const char*& formatstr,
         // parsing failed
         return false;
     }
-    if (type < long_format && type > pseudo_format)
+    if (type < 1 && type > pseudo_format)
     {
         error(line, filename(),
             "Illegal format type %d returned from '%%%c' converter\n",

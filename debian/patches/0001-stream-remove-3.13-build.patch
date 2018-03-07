@@ -8,7 +8,7 @@ equivalent to StreamDevice-2-6-patch20121009
  1 file changed, 14 deletions(-)
 
 diff --git a/streamApp/Makefile b/streamApp/Makefile
-index f201fb9..5471453 100644
+index 1981c42..bbb2f1c 100644
 --- a/streamApp/Makefile
 +++ b/streamApp/Makefile
 @@ -1,13 +1,5 @@
@@ -25,11 +25,11 @@ index f201fb9..5471453 100644
  # EPICS R3.14
  include $(TOP)/configure/CONFIG
  
-@@ -66,13 +58,7 @@ CPPFLAGS += -DDEBUGFILE=StreamDebug.log
+@@ -68,13 +60,7 @@ CPPFLAGS += -DDEBUGFILE=StreamDebug.log
  
  include $(TOP)/configure/RULES
  
--ifeq ($(EPICS_REVISION),14)
+-ifeq ($(BASE_3_14), YES)
  clean:: myclean
 -else
 -clean: myclean

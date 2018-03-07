@@ -71,7 +71,7 @@ index 4fec9f9..c16f995 100644
  include $(TOP)/configure/CONFIG
  
 diff --git a/streamApp/Makefile b/streamApp/Makefile
-index 5471453..d9dd0ba 100644
+index bbb2f1c..a8ffdc0 100644
 --- a/streamApp/Makefile
 +++ b/streamApp/Makefile
 @@ -1,4 +1,4 @@

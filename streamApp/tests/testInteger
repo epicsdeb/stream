@@ -10,16 +10,19 @@ set records {
     record (ai, "DZ:test1")
     {
         field (DTYP, "stream")
+        field (LINR, "LINEAR")
         field (INP,  "@test.proto test1 device")
     }
     record (ai, "DZ:test2")
     {
         field (DTYP, "stream")
+        field (LINR, "LINEAR")
         field (INP,  "@test.proto test2 device")
     }
     record (ai, "DZ:test3")
     {
         field (DTYP, "stream")
+        field (LINR, "LINEAR")
         field (INP,  "@test.proto test3 device")
     }
     record (ai, "DZ:test4")
@@ -30,26 +33,31 @@ set records {
     record (ai, "DZ:test5")
     {
         field (DTYP, "stream")
+        field (LINR, "LINEAR")
         field (INP,  "@test.proto test5 device")
     }
     record (ai, "DZ:test6")
     {
         field (DTYP, "stream")
+        field (LINR, "LINEAR")
         field (INP,  "@test.proto test6 device")
     }
     record (ai, "DZ:test7")
     {
         field (DTYP, "stream")
+        field (LINR, "LINEAR")
         field (INP,  "@test.proto test7 device")
     }
     record (ai, "DZ:test8")
     {
         field (DTYP, "stream")
+        field (LINR, "LINEAR")
         field (INP,  "@test.proto test8 device")
     }
     record (ai, "DZ:test9")
     {
         field (DTYP, "stream")
+        field (LINR, "LINEAR")
         field (INP,  "@test.proto test9 device")
     }
     record (ai, "DZ:test10")
