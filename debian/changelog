@@ -1,3 +1,10 @@
+epics-stream (2.7.7-2) unstable; urgency=medium
+
+  * BLD: pkg headers
+  * BLD: appease lintian
+
+ -- Daron Chabot <chabot@frib.msu.edu>  Mon, 02 Apr 2018 11:35:34 -0400
+
 epics-stream (2.7.7-1) unstable; urgency=medium
 
   * New upstream version 2.7.7
