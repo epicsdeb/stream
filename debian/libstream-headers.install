@@ -1,0 +1,7 @@
+src/StreamBuffer.h usr/lib/epics/include
+src/StreamBusInterface.h usr/lib/epics/include
+src/StreamCore.h usr/lib/epics/include
+src/StreamError.h usr/lib/epics/include
+src/StreamFormatConverter.h usr/lib/epics/include
+src/StreamFormat.h usr/lib/epics/include
+src/StreamProtocol.h usr/lib/epics/include
