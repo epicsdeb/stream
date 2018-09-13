@@ -1,3 +1,9 @@
+epics-stream (2.7.7-3) unstable; urgency=medium
+
+  * Use build profile to enable RTEMS cross build
+
+ -- Martin Konrad <konrad@frib.msu.edu>  Thu, 13 Sep 2018 14:46:50 -0400
+
 epics-stream (2.7.7-2) unstable; urgency=medium
 
   * BLD: pkg headers
