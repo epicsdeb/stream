@@ -1,0 +1,12 @@
+epics-stream source: invalid-restriction-formula-in-build-profiles-field <pkg.epics-base.rtems> rtems-stream-mvme2100
+epics-stream source: invalid-restriction-formula-in-build-profiles-field <pkg.epics-base.rtems> rtems-stream-mvme3100
+epics-stream source: invalid-restriction-formula-in-build-profiles-field <pkg.epics-base.rtems> rtems-stream-mvme5500
+epics-stream source: invalid-restriction-formula-in-build-profiles-field <pkg.epics-base.rtems> rtems-stream-pc386
+epics-stream source: invalid-profile-name-in-source-relation pkg.epics-base.rtems [build-depends: rtems-asyn-mvme2100 <pkg.epics-base.rtems>]
+epics-stream source: invalid-profile-name-in-source-relation pkg.epics-base.rtems [build-depends: rtems-asyn-mvme3100 <pkg.epics-base.rtems>]
+epics-stream source: invalid-profile-name-in-source-relation pkg.epics-base.rtems [build-depends: rtems-asyn-mvme5500 <pkg.epics-base.rtems>]
+epics-stream source: invalid-profile-name-in-source-relation pkg.epics-base.rtems [build-depends: rtems-asyn-pc386 <pkg.epics-base.rtems>]
+epics-stream source: invalid-profile-name-in-source-relation pkg.epics-base.rtems [build-depends: rtems-calc-mvme2100 <pkg.epics-base.rtems>]
+epics-stream source: invalid-profile-name-in-source-relation pkg.epics-base.rtems [build-depends: rtems-calc-mvme3100 <pkg.epics-base.rtems>]
+epics-stream source: invalid-profile-name-in-source-relation pkg.epics-base.rtems [build-depends: rtems-calc-mvme5500 <pkg.epics-base.rtems>]
+epics-stream source: invalid-profile-name-in-source-relation pkg.epics-base.rtems [build-depends: rtems-calc-pc386 <pkg.epics-base.rtems>]
