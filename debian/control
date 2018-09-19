@@ -30,6 +30,17 @@ Description: 'expect' for EPICS
  .
  This package contains headers and libraries needed at build time.
 
+Package: libstream-headers
+Architecture: any
+Depends: libstream2.7.7 (= ${binary:Version}),
+         ${shlibs:Depends}, ${misc:Depends},
+         ${epics:Depends},
+Conflicts: epics-synapps, epics-synapps-dev,
+Description: streamdevice header files
+ Streamdevice header files including core api.
+ .
+ This package contains headers for development with libstream.
+
 Package: libstream2.7.7
 Architecture: any
 Depends: ${shlibs:Depends}, ${misc:Depends},
