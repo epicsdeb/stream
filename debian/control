@@ -2,17 +2,17 @@ Source: epics-stream
 Section: libdevel
 Priority: extra
 Maintainer: Martin Konrad <konrad@frib.msu.edu>
-Build-Depends: debhelper (>= 9), epics-debhelper (>= 8.14~),
-               libpcre3-dev,
+Build-Depends: debhelper (>= 9.20141010), dpkg-dev (>= 1.17.14),
+               epics-debhelper (>= 8.14~), libpcre3-dev,
                epics-dev, epics-calc-dev, epics-asyn-dev,
-               rtems-asyn-mvme2100,
-               rtems-asyn-mvme3100,
-               rtems-asyn-mvme5500,
-               rtems-asyn-pc386,
-               rtems-calc-mvme2100,
-               rtems-calc-mvme3100,
-               rtems-calc-mvme5500,
-               rtems-calc-pc386,
+               rtems-asyn-mvme2100 <pkg.epics-base.rtems>,
+               rtems-asyn-mvme3100 <pkg.epics-base.rtems>,
+               rtems-asyn-mvme5500 <pkg.epics-base.rtems>,
+               rtems-asyn-pc386 <pkg.epics-base.rtems>,
+               rtems-calc-mvme2100 <pkg.epics-base.rtems>,
+               rtems-calc-mvme3100 <pkg.epics-base.rtems>,
+               rtems-calc-mvme5500 <pkg.epics-base.rtems>,
+               rtems-calc-pc386 <pkg.epics-base.rtems>,
 XS-Rtems-Build-Depends: rtems-epics, rtems-seq, rtems-sscan, rtems-calc, rtems-asyn,
 Standards-Version: 3.9.6
 Homepage: http://epics.web.psi.ch/software/streamdevice/
@@ -50,6 +50,7 @@ Description: 'expect' for EPICS
  This package contains runtime libraries
 
 Package: rtems-stream-mvme2100
+Build-Profiles: <pkg.epics-base.rtems>
 Architecture: all
 Depends: epics-stream-dev (>= ${source:Version}),
          epics-stream-dev (<< ${source:Version}.1~),
@@ -61,6 +62,7 @@ Description: 'expect' for EPICS
  This package contains support for the MVME2100 VME SBC
 
 Package: rtems-stream-mvme3100
+Build-Profiles: <pkg.epics-base.rtems>
 Architecture: all
 Depends: epics-stream-dev (>= ${source:Version}),
          epics-stream-dev (<< ${source:Version}.1~),
@@ -72,6 +74,7 @@ Description: 'expect' for EPICS
  This package contains support for the MVME3100 VME SBC
 
 Package: rtems-stream-mvme5500
+Build-Profiles: <pkg.epics-base.rtems>
 Architecture: all
 Depends: epics-stream-dev (>= ${source:Version}),
          epics-stream-dev (<< ${source:Version}.1~),
@@ -83,6 +86,7 @@ Description: 'expect' for EPICS
  This package contains support for the MVME5500 VME SBC
 
 Package: rtems-stream-pc386
+Build-Profiles: <pkg.epics-base.rtems>
 Architecture: all
 Depends: epics-stream-dev (>= ${source:Version}),
          epics-stream-dev (<< ${source:Version}.1~),
