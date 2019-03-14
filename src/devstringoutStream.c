@@ -5,7 +5,7 @@
 * (C) 2005 Dirk Zimoch (dirk.zimoch@psi.ch)                    *
 *                                                              *
 * This is an EPICS record Interface for StreamDevice.          *
-* Please refer to the HTML files in ../doc/ for a detailed     *
+* Please refer to the HTML files in ../docs/ for a detailed    *
 * documentation.                                               *
 *                                                              *
 * If you do any changes in this file, you are not allowed to   *
@@ -18,37 +18,52 @@
 *                                                              *
 ***************************************************************/
 
-#include <stringoutRecord.h>
+#include "stringoutRecord.h"
 #include "devStream.h"
-#include <epicsExport.h>
 
-static long readData (dbCommon *record, format_t *format)
+static long readData(dbCommon *record, format_t *format)
 {
-    stringoutRecord *so = (stringoutRecord *) record;
+    stringoutRecord *so = (stringoutRecord *)record;
+    unsigned short monitor_mask;
+
+    if (format->type != DBF_STRING) return ERROR;
+    if (streamScanfN(record, format, so->val, sizeof(so->val)) == ERROR) return ERROR;
+    if (record->pact) return OK;
+    /* In @init handler, no processing, enforce monitor updates. */
+    monitor_mask = recGblResetAlarms(record);
+#ifndef EPICS_3_13
+    if (so->mpst == stringoutPOST_Always)
+        monitor_mask |= DBE_VALUE;
+    if (so->apst == stringoutPOST_Always)
+        monitor_mask |= DBE_LOG;
+#endif
+    if (monitor_mask != (DBE_VALUE|DBE_LOG) &&
+        strncmp(so->oval, so->val, sizeof(so->val)))
+    {
+        monitor_mask |= DBE_VALUE | DBE_LOG;
+        strncpy(so->oval, so->val, sizeof(so->val));
+    }
+    if (monitor_mask)
+        db_post_events(record, so->val, monitor_mask);
+    return OK;
+}
+
+static long writeData(dbCommon *record, format_t *format)
+{
+    stringoutRecord *so = (stringoutRecord *)record;
 
     if (format->type == DBF_STRING)
     {
-        return streamScanfN (record, format, so->val, sizeof(so->val));
+        return streamPrintf(record, format, so->val);
     }
     return ERROR;
 }
 
-static long writeData (dbCommon *record, format_t *format)
+static long initRecord(dbCommon *record)
 {
-    stringoutRecord *so = (stringoutRecord *) record;
+    stringoutRecord *so = (stringoutRecord *)record;
 
-    if (format->type == DBF_STRING)
-    {
-        return streamPrintf (record, format, so->val);
-    }
-    return ERROR;
-}
-
-static long initRecord (dbCommon *record)
-{
-    stringoutRecord *so = (stringoutRecord *) record;
-
-    return streamInitRecord (record, &so->out, readData, writeData) == ERROR ?
+    return streamInitRecord(record, &so->out, readData, writeData) == ERROR ?
         ERROR : OK;
 }
 

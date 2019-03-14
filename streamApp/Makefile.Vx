@@ -1,20 +1,28 @@
+TOP = ../..
+ifneq ($(wildcard ../../../config),)
 TOP = ../../..
+endif
 
 include $(TOP)/config/CONFIG_APP
 
 LIBNAME = streamApp
 
-LDLIBS += $(COMPAT_BIN)/compatLib
-LDLIBS += $(ASYN_BIN)/asynLib
-LDLIBS += $(INSTALL_BIN)/streamLib
+LDLIBS += $(TOP)/bin/$(T_A)/streamLib
+LDLIBS += $(ASYN)/bin/$(T_A)/asynLib
+LDLIBS += $(COMPAT)/bin/$(T_A)/compatLib
 
 include ../base-3-13LIBOBJS
 
+streamApp_DBD += base-3-13.dbd
+streamApp_DBD += stream.dbd
+DBDNAME = streamApp.dbd
+DBDEXPAND = streamAppInclude-3-13.dbd
+
 # Write StreamDevice debug output to this file
-CPPFLAGS += -DDEBUGFILE=StreamDebug.log
+#CPPFLAGS += -DDEBUGFILE=StreamDebug.log
 
-include $(TOP)/config/RULES.Vx
-include $(TOP)/config/RULES.munch
+include $(EPICS_BASE)/config/RULES.Vx
+include ../../config/RULES.munch
 
-# Rebuild when  LIBOBJS change
+# Rebuild when  LIBOBJS changes
 $(LIBNAME): ../base-3-13LIBOBJS

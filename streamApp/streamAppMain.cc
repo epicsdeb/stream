@@ -4,7 +4,7 @@
 * (C) 2005 Dirk Zimoch (dirk.zimoch@psi.ch)                    *
 *                                                              *
 * This is an example application initializer for StreamDevice. *
-* Please refer to the HTML files in ../doc/ for a detailed     *
+* Please refer to the HTML files in ../docs/ for a detailed    *
 * documentation.                                               *
 *                                                              *
 * If you do any changes in this file, you are not allowed to   *
@@ -17,17 +17,11 @@
 *                                                              *
 ***************************************************************/
 
-#include <epicsThread.h>
-#include <iocsh.h>
-#include <devStream.h>
+#include "epicsThread.h"
+#include "iocsh.h"
 
 int main(int argc,char *argv[])
 {
-#ifdef DEBUGFILE
-#define STR2(x) #x
-#define STR(x) STR2(x)
-    StreamDebugFile = fopen(STR(DEBUGFILE), "w");
-#endif
     if(argc>=2) {
         iocsh(argv[1]);
         epicsThreadSleep(.2);

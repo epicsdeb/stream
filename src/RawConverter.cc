@@ -5,7 +5,7 @@
 * (C) 2005 Dirk Zimoch (dirk.zimoch@psi.ch)                    *
 *                                                              *
 * This is the raw format converter of StreamDevice.            *
-* Please refer to the HTML files in ../doc/ for a detailed     *
+* Please refer to the HTML files in ../docs/ for a detailed    *
 * documentation.                                               *
 *                                                              *
 * If you do any changes in this file, you are not allowed to   *
@@ -27,25 +27,24 @@ class RawConverter : public StreamFormatConverter
 {
     int parse(const StreamFormat&, StreamBuffer&, const char*&, bool);
     bool printLong(const StreamFormat&, StreamBuffer&, long);
-    int scanLong(const StreamFormat&, const char*, long&);
+    ssize_t scanLong(const StreamFormat&, const char*, long&);
 };
 
 int RawConverter::
 parse(const StreamFormat& fmt, StreamBuffer&,
     const char*&, bool)
 {
-    return (fmt.flags & (sign_flag|zero_flag)) ? signed_format : unsigned_format;
+    return (fmt.flags & zero_flag) ? unsigned_format : signed_format;
 }
 
 bool RawConverter::
 printLong(const StreamFormat& fmt, StreamBuffer& output, long value)
 {
-    int prec = fmt.prec;      // number of bytes from value
-    if (prec == -1) prec = 1;    // default: 1 byte
-    int width = prec;            // number of bytes in output
-    if (prec > (int)sizeof(long)) prec=sizeof(long);
+    unsigned int prec = fmt.prec < 0 ? 1 : fmt.prec; // number of bytes from value, default 1
+    unsigned long width = prec;  // number of bytes in output
+    if (prec > sizeof(long)) prec=sizeof(long);
     if (fmt.width > width) width = fmt.width;
-    
+
     char byte = 0;
     if (fmt.flags & alt_flag) // little endian (lsb first)
     {
@@ -96,12 +95,12 @@ printLong(const StreamFormat& fmt, StreamBuffer& output, long value)
     return true;
 }
 
-int RawConverter::
+ssize_t RawConverter::
 scanLong(const StreamFormat& fmt, const char* input, long& value)
 {
-    long length = 0;
+    ssize_t consumed = 0;
     long val = 0;
-    int width = fmt.width;
+    unsigned long width = fmt.width;
     if (width == 0) width = 1; // default: 1 byte
     if (fmt.flags & skip_flag)
     {
@@ -113,7 +112,7 @@ scanLong(const StreamFormat& fmt, const char* input, long& value)
         unsigned int shift = 0;
         while (--width && shift < sizeof(long)*8)
         {
-            val |= ((unsigned char) input[length++]) << shift;
+            val |= (unsigned long)((unsigned char)input[consumed++]) << shift;
             shift += 8;
         }
         if (width == 0)
@@ -121,15 +120,15 @@ scanLong(const StreamFormat& fmt, const char* input, long& value)
             if (fmt.flags & zero_flag)
             {
                 // fill with zero
-                val |= ((unsigned char) input[length++]) << shift;
+                val |= (unsigned long)((unsigned char)input[consumed++]) << shift;
             }
             else
             {
                 // fill with sign
-                val |= ((signed char) input[length++]) << shift;
+                val |= ((long)(signed char)input[consumed++]) << shift;
             }
         }
-        length += width; // ignore upper bytes not fitting in long
+        consumed += width; // ignore upper bytes not fitting in long
     }
     else
     {
@@ -137,21 +136,21 @@ scanLong(const StreamFormat& fmt, const char* input, long& value)
         if (fmt.flags & zero_flag)
         {
             // fill with zero
-            val = (unsigned char) input[length++];
+            val = (unsigned char)input[consumed++];
         }
         else
         {
             // fill with sign
-            val = (signed char) input[length++];
+            val = (signed char)input[consumed++];
         }
         while (--width)
         {
             val <<= 8;
-            val |= (unsigned char) input[length++];
+            val |= (unsigned char)input[consumed++];
         }
     }
     value = val;
-    return length;
+    return consumed;
 }
 
 RegisterConverter (RawConverter, "r");

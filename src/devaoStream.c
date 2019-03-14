@@ -5,7 +5,7 @@
 * (C) 2005 Dirk Zimoch (dirk.zimoch@psi.ch)                    *
 *                                                              *
 * This is an EPICS record Interface for StreamDevice.          *
-* Please refer to the HTML files in ../doc/ for a detailed     *
+* Please refer to the HTML files in ../docs/ for a detailed    *
 * documentation.                                               *
 *                                                              *
 * If you do any changes in this file, you are not allowed to   *
@@ -18,86 +18,132 @@
 *                                                              *
 ***************************************************************/
 
-#include <menuConvert.h>
-#include <aoRecord.h>
+#include "aoRecord.h"
+#include "menuConvert.h"
+#include "cvtTable.h"
 #include "devStream.h"
-#include <epicsExport.h>
 
-static long readData (dbCommon *record, format_t *format)
+static long readData(dbCommon *record, format_t *format)
 {
-    aoRecord *ao = (aoRecord *) record;
+    aoRecord *ao = (aoRecord *)record;
+    double val;
+    unsigned short monitor_mask;
 
     switch (format->type)
     {
         case DBF_DOUBLE:
         {
-            double val;
-            if (streamScanf (record, format, &val)) return ERROR;
-            if (ao->aslo != 0.0 && ao->aslo != 1.0) val *= ao->aslo;
-            ao->val = val + ao->aoff;
-            return DO_NOT_CONVERT;
+            if (streamScanf(record, format, &val) == ERROR) return ERROR;
+            break;
         }
         case DBF_ULONG:
         case DBF_LONG:
         {
             long rval;
-            if (streamScanf (record, format, &rval)) return ERROR;
+            if (streamScanf(record, format, &rval) == ERROR) return ERROR;
             ao->rbv = rval;
             ao->rval = rval;
-            if (ao->linr == menuConvertNO_CONVERSION)
-            {
-                /* allow more bits than 32 */
-                if (format->type == DBF_ULONG)
-                    ao->val = (unsigned long)rval;
-                else    
-                    ao->val = rval;
-                return DO_NOT_CONVERT;
+            if (format->type == DBF_ULONG)
+                val = (unsigned long)rval;
+            else
+                val = rval;
+            break;
+            val += ao->roff;
+            if (ao->linr == menuConvertNO_CONVERSION) {
+	        ; /*do nothing*/
+            } else if ((ao->linr == menuConvertLINEAR)
+#ifndef EPICS_3_13
+		    || (ao->linr == menuConvertSLOPE)
+#endif
+                    ) {
+                val = val * ao->eslo + ao->eoff;
+            } else {
+                if (cvtRawToEngBpt(&val, ao->linr, 0,
+		        (void *)&ao->pbrk, &ao->lbrk) == ERROR) return ERROR;
             }
-            return OK;
+        }
+        default:
+            return ERROR;
+    }
+    if (ao->aslo != 0.0) val *= ao->aslo;
+    val += ao->aoff;
+    ao->val = val;
+    if (record->pact) return DO_NOT_CONVERT;
+    /* In @init handler, no processing, enforce monitor updates. */
+    ao->omod = ao->oval != val;
+    ao->orbv = ao->oval = val;
+    monitor_mask = recGblResetAlarms(record);
+    if (!(fabs(ao->mlst - val) <= ao->mdel))
+    {
+        monitor_mask |= DBE_VALUE;
+        ao->mlst = val;
+    }
+    if (!(fabs(ao->alst - val) <= ao->adel))
+    {
+        monitor_mask |= DBE_LOG;
+        ao->alst = val;
+    }
+    if (monitor_mask)
+        db_post_events(record, &ao->val, monitor_mask);
+    if (ao->omod) monitor_mask |= (DBE_VALUE|DBE_LOG);
+    if (monitor_mask)
+    {
+        ao->omod = FALSE;
+        db_post_events (record, &ao->oval, monitor_mask);
+        if (ao->oraw != ao->rval)
+        {
+            db_post_events(record, &ao->rval, monitor_mask | DBE_VALUE | DBE_LOG);
+            ao->oraw = ao->rval;
+        }
+        if (ao->orbv != ao->rbv)
+        {
+            db_post_events(record, &ao->rbv, monitor_mask | DBE_VALUE | DBE_LOG);
+            ao->orbv = ao->rbv;
         }
     }
-    return ERROR;
+    return DO_NOT_CONVERT;
 }
 
-static long writeData (dbCommon *record, format_t *format)
+static long writeData(dbCommon *record, format_t *format)
 {
-    aoRecord *ao = (aoRecord *) record;
+    aoRecord *ao = (aoRecord *)record;
+
+    double val = (INIT_RUN ? ao->val : ao->oval) - ao->aoff;
+    if (ao->aslo != 0.0 && ao->aslo != 1.0) val /= ao->aslo;
 
     switch (format->type)
     {
         case DBF_DOUBLE:
         {
-            double val = (INIT_RUN ? ao->val : ao->oval) - ao->aoff;
-            if (ao->aslo != 0.0 && ao->aslo != 1.0) val /= ao->aslo;
-            return streamPrintf (record, format, val);
+            return streamPrintf(record, format, val);
         }
         case DBF_ULONG:
         {
-            if (ao->linr == menuConvertNO_CONVERSION)
+            if (ao->linr == 0)
             {
-                /* allow more bits than 32 */
-                return streamPrintf (record, format, (unsigned long)(INIT_RUN ? ao->val : ao->oval));
+                /* allow integers with more than 32 bits */
+                return streamPrintf(record, format, (unsigned long)val);
             }
-            return streamPrintf (record, format, (unsigned long)ao->rval);
+            return streamPrintf(record, format, (unsigned long)ao->rval);
         }
         case DBF_LONG:
         {
-            if (ao->linr == menuConvertNO_CONVERSION)
+            if (ao->linr == 0)
             {
-                /* allow more bits than 32 */
-                return streamPrintf (record, format, (long)(INIT_RUN ? ao->val : ao->oval));
+                /* allow integers with more than 32 bits */
+                return streamPrintf(record, format, (long)val);
             }
-            return streamPrintf (record, format, (long)ao->rval);
+            return streamPrintf(record, format, (long)ao->rval);
         }
     }
     return ERROR;
 }
 
-static long initRecord (dbCommon *record)
+static long initRecord(dbCommon *record)
 {
-    aoRecord *ao = (aoRecord *) record;
+    aoRecord *ao = (aoRecord *)record;
 
-    return streamInitRecord (record, &ao->out, readData, writeData);
+    return streamInitRecord(record, &ao->out, readData, writeData);
 }
 
 struct {

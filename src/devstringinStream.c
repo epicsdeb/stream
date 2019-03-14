@@ -5,7 +5,7 @@
 * (C) 2005 Dirk Zimoch (dirk.zimoch@psi.ch)                    *
 *                                                              *
 * This is an EPICS record Interface for StreamDevice.          *
-* Please refer to the HTML files in ../doc/ for a detailed     *
+* Please refer to the HTML files in ../docs/ for a detailed    *
 * documentation.                                               *
 *                                                              *
 * If you do any changes in this file, you are not allowed to   *
@@ -18,37 +18,37 @@
 *                                                              *
 ***************************************************************/
 
-#include <stringinRecord.h>
+#include "stringinRecord.h"
 #include "devStream.h"
-#include <epicsExport.h>
 
-static long readData (dbCommon *record, format_t *format)
+static long readData(dbCommon *record, format_t *format)
 {
-    stringinRecord *si = (stringinRecord *) record;
+    stringinRecord *si = (stringinRecord *)record;
 
     if (format->type == DBF_STRING)
     {
-        return streamScanfN (record, format, si->val, sizeof(si->val));
+        if (streamScanfN(record, format, si->val, sizeof(si->val)) == ERROR) return ERROR;
+        return OK;
     }
     return ERROR;
 }
 
-static long writeData (dbCommon *record, format_t *format)
+static long writeData(dbCommon *record, format_t *format)
 {
-    stringinRecord *si = (stringinRecord *) record;
+    stringinRecord *si = (stringinRecord *)record;
 
     if (format->type == DBF_STRING)
     {
-        return streamPrintf (record, format, si->val);
+        return streamPrintf(record, format, si->val);
     }
     return ERROR;
 }
 
-static long initRecord (dbCommon *record)
+static long initRecord(dbCommon *record)
 {
-    stringinRecord *si = (stringinRecord *) record;
+    stringinRecord *si = (stringinRecord *)record;
 
-    return streamInitRecord (record, &si->inp, readData, writeData) == ERROR ?
+    return streamInitRecord(record, &si->inp, readData, writeData) == ERROR ?
         ERROR : OK;
 }
 

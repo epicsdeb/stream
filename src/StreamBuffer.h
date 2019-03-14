@@ -4,7 +4,7 @@
 * (C) 2005 Dirk Zimoch (dirk.zimoch@psi.ch)                    *
 *                                                              *
 * This is a buffer class used in StreamDevice for I/O.         *
-* Please refer to the HTML files in ../doc/ for a detailed     *
+* Please refer to the HTML files in ../docs/ for a detailed    *
 * documentation.                                               *
 *                                                              *
 * If you do any changes in this file, you are not allowed to   *
@@ -22,13 +22,14 @@
 
 #include <string.h>
 #include <stdlib.h>
+#include <sys/types.h>
 
 #ifndef __GNUC__
 #define __attribute__(x)
 #endif
 
-#ifdef _WIN32
-#define ssize_t ptrdiff_t
+#if defined(_WIN32)
+typedef ptrdiff_t ssize_t;
 #endif
 
 class StreamBuffer
@@ -72,7 +73,7 @@ public:
         {init(NULL, size);}
 
     ~StreamBuffer()
-        {if (buffer != local) delete buffer;}
+        {if (buffer != local) delete [] buffer;}
 
     // operator (): get char* pointing to index
     const char* operator()(ssize_t index=0) const
@@ -93,11 +94,11 @@ public:
         {return len>0;}
 
     // length: get current data length
-    ssize_t length() const
+    size_t length() const
         {return len;}
 
     // capacity: get current max data length (spare one byte for end)
-    ssize_t capacity() const
+    size_t capacity() const
         {return cap-1;}
 
     // end: get pointer to byte after last data byte
@@ -129,7 +130,7 @@ public:
 
     StreamBuffer& append(const StreamBuffer& s)
         {return append(s.buffer+s.offs, s.len);}
-        
+
     // operator += alias for append
     StreamBuffer& operator+=(char c)
         {return append(c);}
@@ -194,7 +195,7 @@ public:
         {return replace(pos, 0, &c, 1);}
 
     StreamBuffer& print(const char* fmt, ...)
-        __attribute__ ((format(printf,2,3)));
+        __attribute__((__format__(__printf__,2,3)));
 
     // find: get index of data in buffer or -1
     ssize_t find(char c, ssize_t start=0) const
@@ -223,7 +224,7 @@ public:
 // expand: create copy of StreamBuffer where all nonprintable characters
 // are replaced by <xx> with xx being the hex code of the characters
     StreamBuffer expand(ssize_t start, ssize_t length) const;
-    
+
     StreamBuffer expand(ssize_t start=0) const
         {return expand(start, len);}
 

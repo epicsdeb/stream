@@ -4,7 +4,7 @@
 * (C) 2005 Dirk Zimoch (dirk.zimoch@psi.ch)                    *
 *                                                              *
 * This is error and debug message handling of StreamDevice.    *
-* Please refer to the HTML files in ../doc/ for a detailed     *
+* Please refer to the HTML files in ../docs/ for a detailed    *
 * documentation.                                               *
 *                                                              *
 * If you do any changes in this file, you are not allowed to   *
@@ -18,11 +18,15 @@
 ***************************************************************/
 
 #include "StreamError.h"
+#ifdef _WIN32
+#include <windows.h>
+#endif
 #include <string.h>
 #include <time.h>
 #include <stdio.h>
 
 int streamDebug = 0;
+int streamError = 0;
 extern "C" {
 #ifdef _WIN32
 __declspec(dllexport)
@@ -36,24 +40,36 @@ FILE *StreamDebugFile = NULL;
 #endif
 #endif
 
+#ifdef _WIN32
+#define localtime_r(timet,tm) localtime_s(tm,timet)
+
+/* Enable ANSI colors in Windows console */
+static int win_console_init() {
+	DWORD dwMode = 0;
+    HANDLE hCons = GetStdHandle(STD_ERROR_HANDLE);
+	GetConsoleMode(hCons, &dwMode);
+	dwMode |= ENABLE_VIRTUAL_TERMINAL_PROCESSING;
+	SetConsoleMode(hCons, dwMode);
+	return 0;
+}
+static int s = win_console_init();
+
+#endif
+
 /* You can globally change the printTimestamp function
    by setting the StreamPrintTimestampFunction variable
    to your own function.
 */
-static void printTimestamp(char* buffer, int size)
+static void printTimestamp(char* buffer, size_t size)
 {
     time_t t;
     struct tm tm;
     time(&t);
-#ifdef _WIN32
-    tm = *localtime(&t);
-#else    
     localtime_r(&t, &tm);
-#endif
     strftime(buffer, size, "%Y/%m/%d %H:%M:%S", &tm);
 }
 
-void (*StreamPrintTimestampFunction)(char* buffer, int size) = printTimestamp;
+void (*StreamPrintTimestampFunction)(char* buffer, size_t size) = printTimestamp;
 
 void StreamError(const char* fmt, ...)
 {
@@ -74,6 +90,7 @@ void StreamError(int line, const char* file, const char* fmt, ...)
 void StreamVError(int line, const char* file, const char* fmt, va_list args)
 {
     char timestamp[40];
+    if (!streamError) return; // Error logging disabled
     StreamPrintTimestampFunction(timestamp, 40);
 #ifdef va_copy
     if (StreamDebugFile)
@@ -113,4 +130,3 @@ print(const char* fmt, ...)
     va_end(args);
     return 1;
 }
-

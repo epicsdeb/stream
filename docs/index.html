@@ -1,0 +1,147 @@
+<!DOCTYPE HTML>
+<html lang="en">
+<head>
+<title>StreamDevice</title>
+<meta charset="utf-8" />
+<link rel="shortcut icon" href="favicon.ico" />
+<link rel="stylesheet" type="text/css" href="stream.css" />
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+<meta name="author" content="Dirk Zimoch" />
+</head>
+<body>
+<iframe src="nav.html" id="navleft"></iframe>
+<h1>EPICS <em>StreamDevice</em></h1>
+
+<h2>What is <em>StreamDevice</em>?</h2>
+<p>
+<em>StreamDevice</em> is a generic
+<a href="https://epics.anl.gov/" target="ex">EPICS</a>
+device support for devices with a "byte stream" based
+communication interface.
+That means devices that can be controlled by sending and
+receiving strings (in the broadest sense, including non-printable
+characters and even null-bytes). 
+Examples for this type of communication interface are
+serial line (RS-232, RS-485, ...),
+IEEE-488 (also known as GPIB or HP-IB), and telnet-like TCP/IP.
+</p>
+<p>
+<em>StreamDevice</em> is not limited to a specific device type or
+manufacturer nor is it necessary to re-compile anything to support a
+new device type.
+Instead, it can be configured for any device type with
+<a href="protocol.html"><em>protocol files</em></a> in plain ASCII text
+which describes the commands a device understands and the replies it sends.
+If the device can be controlled with strings like
+"<kbd>RF:FREQ 499.655 MHZ</kbd>" <em>StreamDevice</em> can be used.
+Formatting and parsing of values is done with
+<a href="formats.html"><em>format converters</em></a> similar to those
+known from the C functions <em>printf()</em> and <em>scanf()</em>.
+To support other formats, it is possible to
+<a href="formatconverter.html">write your own converters</a>.
+</p>
+<p>
+Each record with <em>StreamDevice</em> support runs one protocol
+from the protocol file to read or write its value.
+Protocols can be as simple as just one output string or can
+consist of many strings sent to and read from the device.
+However, a protocol is linear.
+That means it runs from start to end each time the record is
+<a href="processing.html">processed</a>.
+It does not provide loops or branches.
+</p>
+<p>
+<em>StreamDevice</em> comes with an interface to<a target="ex"
+href="https://www.aps.anl.gov/epics/modules/soft/asyn/">
+<em>asynDriver</em></a>
+but can be extended to
+<a href="businterface.html">support other bus drivers</a>.
+Note that <em>StreamDevice</em> is not an alternative or replacement
+but a supplement for <em>asynDriver</em>.
+<em>StreamDevice</em> converts record values to and from strings but
+leaves it to <em>asynDriver</em> (or other bus interfaces) to exchange
+these strings with the device.
+Thus any bus type supported by <em>asynDriver</em> (to be exact by
+<em>asynOctet</em>) can automatically be used with <em>StreamDevice</em>.
+</p>
+<p>
+<em>StreamDevice</em> supports all
+<a href="recordtypes.html">standard records</a> of EPICS base
+which can have device support.
+It is also possible to
+<a href="recordinterface.html">write support for new record types</a>.
+</p>
+
+<h2>What is <em>StreamDevice</em> not?</h2>
+<p>
+It is not a programming language for a high-level application.
+It is, for example, not possible to write a complete scanning program
+in a protocol.
+Use other tools for that and use <em>StreamDevice</em> only for the
+primitive commands.
+</p>
+<p>
+It is not a block oriented device support.
+It is not intended for huge binary blocks of data that contain
+many process variables distributed over many records.
+Consider <a href="https://github.com/paulscherrerinstitute/regdev"
+target="ex"><em>regDev</em></a>
+for that.
+</p>
+<p>
+It is not a very flexible html, xml, json, etc. parser. Data needs to
+come in a predictible order to be parsable by <em>StreamDevice</em>.
+</p>
+
+<h2>Recommended Readings</h2>
+<p>
+IOC Application Developer's Guide:
+<a href="https://epics.anl.gov/base/R3-14/12-docs/AppDevGuide/"
+target="ex">R3.14.12</a>,
+<a href="https://epics.anl.gov/base/R3-15/6-docs/AppDevGuide/AppDevGuide.html"
+target="ex">R3.15.5</a>,
+<a href="https://epics.anl.gov/base/R3-16/1-docs/AppDevGuide/AppDevGuide.html"
+target="ex">R3.16.1</a>
+</p>
+<p>
+<a href="https://wiki-ext.aps.anl.gov/epics/index.php/RRM_3-14"
+target="ex">EPICS Record Reference Manual</a>
+</p>
+
+<h2>Color and Style Conventions</h2>
+<p>
+In this document, code is witten in <code>green fixed width font</code>.
+This marks text you typically type in configuration files etc.
+</p>
+<pre>
+Longer code segments are often set in a box.
+</pre>
+
+<h2>Changes in Version 2.8</h2>
+<ul>
+ <li>Support standard EPICS module build system.
+ <li>Compatible with EPICS base releases up to 7.0.1.
+   <ul>
+    <li>Support for new record types: int64in, int64out, lsi, lso.
+    <li>Support for INT64 and UINT64 in aai, aao, waveform.
+   </ul>
+ <li>Run @init more often (e.g. when device re-connects or paused IOC is resumed).
+ <li>Use "COMM" error code in .STAT when device is disconnected.
+ <li>Allow spaces in protocol parameter list.
+ <li>Errors are new silent by default (var streamError 0) except during init.
+ <li>Support output redirect of all shell functions.
+ <li>Fix building shared libraries on Windows.
+ <li>Fix some C++11 warnings.
+ <li>Fix several signed/unsigned problems.
+ <li>Dropped support for cygnus-2.7.2 gcc (used by some old cygwin).
+ <li>Several bug fixes.
+ <li>Several documentation updates.
+</ul>
+
+
+<footer>
+<a href="setup.html">Next: Setup</a>
+Dirk Zimoch, 2018
+</footer>
+</body>
+</html>

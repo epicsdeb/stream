@@ -4,7 +4,7 @@
 * (C) 2005 Dirk Zimoch (dirk.zimoch@psi.ch)                    *
 *                                                              *
 * This is the interface to bus drivers for StreamDevice.       *
-* Please refer to the HTML files in ../doc/ for a detailed     *
+* Please refer to the HTML files in ../docs/ for a detailed    *
 * documentation.                                               *
 *                                                              *
 * If you do any changes in this file, you are not allowed to   *
@@ -17,10 +17,9 @@
 *                                                              *
 ***************************************************************/
 
+#include <stdio.h>
 #include "StreamBusInterface.h"
 #include "StreamError.h"
-
-StreamIoStatusStrClass StreamIoStatusStr;
 
 StreamBusInterfaceRegistrarBase* StreamBusInterfaceRegistrarBase::first;
 
@@ -70,7 +69,20 @@ find(Client* client, const char* busname, int addr, const char* param)
         bus = r->find(client, busname, addr, param);
         debug("StreamBusInterface::find %s %s\n",
             r->name, bus ? "matches" : "does not match");
-        if (bus) return bus;
+        if (bus)
+        {
+            if (addr >= 0)
+            {
+                bus->_name = new char[strlen(busname) + sizeof(int)*2 + sizeof(int)/2 + 2];
+                sprintf(bus->_name, "%s %d", busname, addr);
+            }
+            else
+            {
+                bus->_name = new char[strlen(busname) + 1];
+                strcpy(bus->_name, busname);
+            }
+            return bus;
+        }
     }
     return NULL;
 }
@@ -106,7 +118,7 @@ writeRequest(const void*, size_t, unsigned long)
 }
 
 bool StreamBusInterface::
-readRequest(unsigned long, unsigned long, long, bool)
+readRequest(unsigned long, unsigned long, size_t, bool)
 {
     return false;
 }
@@ -126,8 +138,8 @@ writeCallback(StreamIoStatus)
 {
 }
 
-long StreamBusInterface::Client::
-readCallback(StreamIoStatus, const void*, long)
+ssize_t StreamBusInterface::Client::
+readCallback(StreamIoStatus, const void*, size_t)
 {
     return 0;
 }
