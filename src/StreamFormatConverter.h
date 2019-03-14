@@ -4,7 +4,7 @@
 * (C) 2005 Dirk Zimoch (dirk.zimoch@psi.ch)                    *
 *                                                              *
 * This is the format converter header of StreamDevice.         *
-* Please refer to the HTML files in ../doc/ for a detailed     *
+* Please refer to the HTML files in ../docs/ for a detailed    *
 * documentation.                                               *
 *                                                              *
 * If you do any changes in this file, you are not allowed to   *
@@ -56,14 +56,14 @@ public:
         StreamBuffer& output, const char* value);
     virtual bool printPseudo(const StreamFormat& fmt,
         StreamBuffer& output);
-    virtual int scanLong(const StreamFormat& fmt,
+    virtual ssize_t scanLong(const StreamFormat& fmt,
         const char* input, long& value);
-    virtual int scanDouble(const StreamFormat& fmt,
+    virtual ssize_t scanDouble(const StreamFormat& fmt,
         const char* input, double& value);
-    virtual int scanString(const StreamFormat& fmt,
-        const char* input, char* value, size_t maxlen);
-    virtual int scanPseudo(const StreamFormat& fmt,
-        StreamBuffer& inputLine, long& cursor);
+    virtual ssize_t scanString(const StreamFormat& fmt,
+        const char* input, char* value, size_t& size);
+    virtual ssize_t scanPseudo(const StreamFormat& fmt,
+        StreamBuffer& inputLine, size_t& cursor);
 };
 
 inline StreamFormatConverter* StreamFormatConverter::
@@ -130,8 +130,8 @@ void* ref_##converter = &registrar_##converter\
 * You only need to implement the flavour of print and/or scan suitable for
 * the datatype returned by parse().
 *
-* Now, fmt.type contains the value returned by parse(). With fmt.info()
-* you will get the string you have written to info in parse() (null terminated).
+* Now, fmt.type contains the value returned by parse(). With fmt.info() you
+* will get the string you have written to info in parse() (null terminated).
 * The length of the info string can be found in fmt.infolen.
 *
 * In print*(), append the converted value to output. Do not modify what is
@@ -139,9 +139,14 @@ void* ref_##converter = &registrar_##converter\
 * Return true on success, false on failure.
 *
 * In scan*(), read the value from input and return the number of consumed
-* bytes. In the string version, don't write more bytes than maxlen! If the
-* skip_flag is set, you don't need to write to value, since the value will be
-* discarded anyway. Return -1 on failure.
+* bytes.
+* In the string version, don't write more bytes than size including a
+* mandatory terminating null byte. Update size with the number of bytes
+* written into the value, wich may differ from the number of bytes consumed
+* from the input (e.g. due to leading space). If the skip_flag is set, the
+* input will be discarded. Thus, don't write to value. You also don't need
+* to update size.
+* Return -1 on failure.
 *
 *
 * Register your class

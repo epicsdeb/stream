@@ -5,7 +5,7 @@
 * (C) 2005 Dirk Zimoch (dirk.zimoch@psi.ch)                    *
 *                                                              *
 * This is the raw format converter of StreamDevice.            *
-* Please refer to the HTML files in ../doc/ for a detailed     *
+* Please refer to the HTML files in ../docs/ for a detailed    *
 * documentation.                                               *
 *                                                              *
 * If you do any changes in this file, you are not allowed to   *
@@ -29,7 +29,7 @@ class RawFloatConverter : public StreamFormatConverter
 {
     int parse(const StreamFormat&, StreamBuffer&, const char*&, bool);
     bool printDouble(const StreamFormat&, StreamBuffer&, double);
-    int scanDouble(const StreamFormat&, const char*, double&);
+    ssize_t scanDouble(const StreamFormat&, const char*, double&);
 };
 
 int RawFloatConverter::
@@ -90,7 +90,7 @@ printDouble(const StreamFormat& format, StreamBuffer& output, double value)
     return true;
 }
 
-int RawFloatConverter::
+ssize_t RawFloatConverter::
 scanDouble(const StreamFormat& format, const char* input, double& value)
 {
     int nbOfBytes;

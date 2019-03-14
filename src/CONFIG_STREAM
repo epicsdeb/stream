@@ -1,29 +1,38 @@
-# Want debugging?
-# HOST_OPT = NO
-
 # You may add more record interfaces
 # This requires the naming conventions
-# dev$(RECORD)Stream.c
+# dev$(RECORDTYPE)Stream.c
 
-RECORDS += ao ai
-RECORDS += bo bi
-RECORDS += mbbo mbbi
-RECORDS += mbboDirect mbbiDirect
-RECORDS += longout longin
-RECORDS += stringout stringin
-RECORDS += waveform
-RECORDS += calcout
-RECORDS += aai aao
+RECORDTYPES += ao ai
+RECORDTYPES += bo bi
+RECORDTYPES += mbbo mbbi
+RECORDTYPES += mbboDirect mbbiDirect
+RECORDTYPES += longout longin
+RECORDTYPES += stringout stringin
+RECORDTYPES += waveform
+RECORDTYPES += aai aao
+
+ifdef BASE_3_14
+RECORDTYPES += calcout
+endif
+
+ifdef BASE_3_15
+RECORDTYPES += lsi lso
+endif
+
+ifdef BASE_3_16
+RECORDTYPES += int64in int64out
+endif
 
 # Do you have synApps and want support for scalcout?
 # Then define CALC or SYNAPPS in your RELEASE file
 # pointing to the 'calc' module of synApps.
-# Due to strange cross dependencies in synApps
-# you have to build the 'sscan' and 'genSub'
-# modules before building 'calc'.
-# See doc/scalcout.html for a required fix in scalcout.
-
-SYNAPPS_RECORDS += scalcout
+# Older 'calc' versions have a cross reference on
+# 'sscan' and/or 'genSub', so you may have to build them first.
+# Up to version 2-6 (synApps 5-1) the 'calc' module needs a fix.
+# See doc/scalcout.html for details.
+ifneq ($(words $(CALC) $(SYNAPPS)), 0)
+RECORDTYPES += scalcout
+endif
 
 # You may add more bus interfaces
 # This requires the naming convention
@@ -33,6 +42,9 @@ SYNAPPS_RECORDS += scalcout
 
 BUSSES += Debug
 BUSSES += Dummy
+ifdef ASYN
+BUSSES += AsynDriver
+endif
 
 # You may add more format converters
 # This requires the naming convention
@@ -63,7 +75,7 @@ ifneq ($(words $(PCRE) $(PCRE_LIB) $(PCRE_INCLUDE)),0)
 FORMATS += Regexp
 endif
 
-# Want a loadable module? 
+# Want a loadable module?
 # For Tornado 2.0.2, a fix is needed in the
 # registerRecordDeviceDriver.pl script in base:
 # at the end replace the line "IoccrfReg iocshReg;"

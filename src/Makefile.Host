@@ -18,25 +18,19 @@
 #                                                              #
 ################################################################
 
+TOP = ../..
+ifneq ($(wildcard ../../../config),)
 TOP = ../../..
+endif
 
 include $(TOP)/config/CONFIG_APP
 include ../CONFIG_STREAM
 
-# In 3.13, calcout has no device support
-RECORDS_3_13 = $(filter-out calcout,$(RECORDS))
-
 DBDNAME = stream.dbd
-
 INC += devStream.h
 
-# This is the munch.pl taken from EPICS 3.14.8.2
-# Install script and rule.
-CONFIGS = RULES.munch
-SCRIPTS = munch.pl
+include $(EPICS_BASE)/config/RULES.Host
 
-include $(TOP)/config/RULES.Host
-
-# create stream.dbd from all RECORDS
+# create stream.dbd from all RECORDTYPES
 stream.dbd: ../CONFIG_STREAM
-	$(PERL) ../makedbd.pl -3.13 $(RECORDS_3_13) > $@
+	$(PERL) ../makedbd.pl -3.13 $(RECORDTYPES) > $@

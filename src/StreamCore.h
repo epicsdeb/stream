@@ -5,7 +5,7 @@
 * (C) 2005 Dirk Zimoch (dirk.zimoch@psi.ch)                    *
 *                                                              *
 * This is the kernel of StreamDevice.                          *
-* Please refer to the HTML files in ../doc/ for a detailed     *
+* Please refer to the HTML files in ../docs/ for a detailed    *
 * documentation.                                               *
 *                                                              *
 * If you do any changes in this file, you are not allowed to   *
@@ -70,25 +70,28 @@ void acceptEvent(unsigned short mask, unsigned short timeout)
 
 ***************************************/
 
-enum Flags {
-    // 0x00FFFFFF reserved for StreamCore
-    None = 0x0000,
-    IgnoreExtraInput = 0x0001,
-    InitRun = 0x0002,
-    AsyncMode = 0x0004,
-    GotValue = 0x0008,
-    BusOwner = 0x0010,
-    Separator = 0x0020,
-    ScanTried = 0x0040,
-    AcceptInput = 0x0100,
-    AcceptEvent = 0x0200,
-    LockPending = 0x0400,
-    WritePending = 0x0800,
-    WaitPending = 0x1000,
-    BusPending = LockPending|WritePending|WaitPending,
-    ClearOnStart = InitRun|AsyncMode|GotValue|BusOwner|Separator|ScanTried|
-                    AcceptInput|AcceptEvent|BusPending
-};
+#include "MacroMagic.h"
+
+
+// Flags: 0x00FFFFFF reserved for StreamCore
+const unsigned long None             = 0x0000;
+const unsigned long IgnoreExtraInput = 0x0001;
+const unsigned long InitRun          = 0x0002;
+const unsigned long AsyncMode        = 0x0004;
+const unsigned long GotValue         = 0x0008;
+const unsigned long BusOwner         = 0x0010;
+const unsigned long Separator        = 0x0020;
+const unsigned long ScanTried        = 0x0040;
+const unsigned long AcceptInput      = 0x0100;
+const unsigned long AcceptEvent      = 0x0200;
+const unsigned long LockPending      = 0x0400;
+const unsigned long WritePending     = 0x0800;
+const unsigned long WaitPending      = 0x1000;
+const unsigned long Aborted          = 0x2000;
+const unsigned long BusPending       = LockPending|WritePending|WaitPending;
+const unsigned long ClearOnStart     = InitRun|AsyncMode|GotValue|Aborted|
+                                       BusOwner|Separator|ScanTried|
+                                       AcceptInput|AcceptEvent|BusPending;
 
 struct StreamFormat;
 
@@ -97,14 +100,12 @@ class StreamCore :
     StreamBusInterface::Client
 {
 protected:
-    enum ProtocolResult {
-        Success, LockTimeout, WriteTimeout, ReplyTimeout, ReadTimeout,
-        ScanError, FormatError, Abort, Fault
-    };
 
-    enum StartMode {
-        StartNormal, StartInit, StartAsync
-    };
+    ENUM(ProtocolResult,
+        Success, LockTimeout, WriteTimeout, ReplyTimeout, ReadTimeout, ScanError, FormatError, Abort, Fault, Offline);
+
+    ENUM(StartMode,
+        StartNormal, StartInit, StartAsync);
 
     class MutexLock
     {
@@ -135,10 +136,10 @@ protected:
     bool printValue(const StreamFormat& format, long value);
     bool printValue(const StreamFormat& format, double value);
     bool printValue(const StreamFormat& format, char* value);
-    long scanValue(const StreamFormat& format, long& value);
-    long scanValue(const StreamFormat& format, double& value);
-    long scanValue(const StreamFormat& format, char* value, long maxlen);
-    long scanValue(const StreamFormat& format);
+    ssize_t scanValue(const StreamFormat& format, long& value);
+    ssize_t scanValue(const StreamFormat& format, double& value);
+    ssize_t scanValue(const StreamFormat& format, char* value, size_t& size);
+    ssize_t scanValue(const StreamFormat& format);
 
     StreamBuffer protocolname;
     unsigned long lockTimeout;
@@ -159,11 +160,11 @@ protected:
     StreamBuffer onReadTimeout;   // error handler (optional)
     StreamBuffer onMismatch;      // error handler (optional)
     const char* commandIndex;     // current position
-    const char* activeCommand;    // start of current command
+    char activeCommand;           // current command
     StreamBuffer outputLine;
     StreamBuffer inputBuffer;
     StreamBuffer inputLine;
-    long consumedInput;
+    size_t consumedInput;
     ProtocolResult runningHandler;
     StreamBuffer fieldAddress;
 
@@ -194,8 +195,8 @@ protected:
 // StreamBusInterface::Client methods
     void lockCallback(StreamIoStatus status);
     void writeCallback(StreamIoStatus status);
-    long readCallback(StreamIoStatus status,
-        const void* input, long size);
+    ssize_t readCallback(StreamIoStatus status,
+        const void* input, size_t size);
     void eventCallback(StreamIoStatus status);
     void execCallback(StreamIoStatus status);
     void connectCallback(StreamIoStatus status);
@@ -217,7 +218,7 @@ public:
     StreamCore();
     virtual ~StreamCore();
     bool parse(const char* filename, const char* protocolname);
-    void printProtocol();
+    void printProtocol(FILE* = stdout);
     const char* name() { return streamname; }
     void printStatus(StreamBuffer& buffer);
 };

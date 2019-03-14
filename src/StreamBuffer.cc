@@ -4,7 +4,7 @@
 * (C) 2005 Dirk Zimoch (dirk.zimoch@psi.ch)                    *
 *                                                              *
 * This is a buffer class used in StreamDevice for I/O.         *
-* Please refer to the HTML files in ../doc/ for a detailed     *
+* Please refer to the HTML files in ../docs/ for a detailed    *
 * documentation.                                               *
 *                                                              *
 * If you do any changes in this file, you are not allowed to   *
@@ -17,6 +17,11 @@
 *                                                              *
 ***************************************************************/
 
+// Make sure that vsnprintf is available
+#ifndef _BSD_SOURCE
+#define _BSD_SOURCE
+#endif
+
 #include "StreamBuffer.h"
 #include "StreamError.h"
 
@@ -24,11 +29,47 @@
 #include <stdarg.h>
 #include <stdlib.h>
 
-#if defined(__vxworks) || defined(vxWorks) || defined(_WIN32) || defined(__rtems__)
-// These systems have no vsnprintf
-#include <epicsStdio.h>
-#define vsnprintf epicsVsnprintf
-#endif
+#ifdef vxWorks
+#include <version.h>
+#ifndef _WRS_VXWORKS_MAJOR
+// VxWorks 5 has no vsnprintf
+// Implementation taken from EPICS 3.14
+
+#include <vxWorks.h>
+#include <fioLib.h>
+
+struct outStr_s {
+    char *str;
+    int free;
+};
+
+static STATUS outRoutine(char *buffer, int nchars, int outarg) {
+    struct outStr_s *poutStr = (struct outStr_s *) outarg;
+    int free = poutStr->free;
+    int len;
+
+    if (free < 1) { /*let fioFormatV continue to count length*/
+        return OK;
+    } else if (free > 1) {
+        len = min(free-1, nchars);
+        strncpy(poutStr->str, buffer, len);
+        poutStr->str += len;
+        poutStr->free -= len;
+    }
+    /*make sure final string is null terminated*/
+    *poutStr->str = 0;
+    return OK;
+}
+
+int vsnprintf(char *str, size_t size, const char *format, va_list ap) {
+    struct outStr_s outStr;
+
+    outStr.str = str;
+    outStr.free = size;
+    return fioFormatV(format, ap, (FUNCPTR)outRoutine, (int)&outStr);
+}
+#endif // ! _WRS_VXWORKS_MAJOR
+#endif // vxWorks
 
 #define P PRINTF_SIZE_T_PREFIX
 
@@ -288,7 +329,7 @@ StreamBuffer StreamBuffer::expand(ssize_t start, ssize_t length) const
     }
     end = start+length;
     if (end > len) end = len;
-    StreamBuffer result((end-start)*2);
+    StreamBuffer result;
     start += offs;
     end += offs;
     size_t i;
@@ -296,14 +337,10 @@ StreamBuffer StreamBuffer::expand(ssize_t start, ssize_t length) const
     for (i = start; i < end; i++)
     {
         c = buffer[i];
-        if ((c & 0x7f) < 0x20 || (c & 0x7f) == 0x7f)
-        {
-            result.print("<%02x>", c & 0xff);
-        }
+        if (c < 0x20 || c >= 0x7f)
+            result.print("\033[7m<%02x>\033[27m", c & 0xff);
         else
-        {
             result.append(c);
-        }
     }
     return result;
 }
@@ -311,27 +348,20 @@ StreamBuffer StreamBuffer::expand(ssize_t start, ssize_t length) const
 StreamBuffer StreamBuffer::
 dump() const
 {
-    StreamBuffer result(256+cap*5);
-    result.append("\033[0m");
+    StreamBuffer result;
     size_t i;
-    result.print("%"P"d,%"P"d,%"P"d:\033[37m", offs, len, cap);
+    result.print("%" P "d,%" P "d,%" P "d:", offs, len, cap);
+    if (offs) result.print("\033[47m");
+    char c;
     for (i = 0; i < cap; i++)
     {
-        if (i == offs) result.append("\033[34m[\033[0m");
-        if ((buffer[i] & 0x7f) < 0x20 || (buffer[i] & 0x7f) == 0x7f)
-        {
-            if (i < offs || i >= offs+len)
-            result.print(
-                "<%02x>", buffer[i] & 0xff);
-            else
-            result.print(
-                "\033[34m<%02x>\033[37m", buffer[i] & 0xff);
-        }
+        c = buffer[i];
+        if (offs && i == offs) result.append("\033[0m");
+        if (c < 0x20 || c >= 0x7f)
+            result.print("\033[7m<%02x>\033[27m", c & 0xff);
         else
-        {
-            result.append(buffer[i]);
-        }
-        if (i == offs+len-1) result.append("\033[34m]\033[37m");
+            result.append(c);
+        if (i == offs+len-1) result.append("\033[47m");
     }
     result.append("\033[0m");
     return result;

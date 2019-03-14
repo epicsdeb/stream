@@ -5,7 +5,7 @@
 * (C) 2005 Dirk Zimoch (dirk.zimoch@psi.ch)                    *
 *                                                              *
 * This is an EPICS record Interface for StreamDevice.          *
-* Please refer to the HTML files in ../doc/ for a detailed     *
+* Please refer to the HTML files in ../docs/ for a detailed    *
 * documentation.                                               *
 *                                                              *
 * If you do any changes in this file, you are not allowed to   *
@@ -18,82 +18,104 @@
 *                                                              *
 ***************************************************************/
 
-#include <string.h>
-#include <boRecord.h>
+#include "boRecord.h"
 #include "devStream.h"
-#include <epicsExport.h>
 
-static long readData (dbCommon *record, format_t *format)
+static long readData(dbCommon *record, format_t *format)
 {
-    boRecord *bo = (boRecord *) record;
+    boRecord *bo = (boRecord *)record;
     unsigned long val;
+    unsigned short monitor_mask;
 
     switch (format->type)
     {
         case DBF_ULONG:
         case DBF_LONG:
         {
-            if (streamScanf (record, format, &val)) return ERROR;
+            if (streamScanf(record, format, &val) == ERROR) return ERROR;
             if (bo->mask) val &= bo->mask;
             bo->rbv = val;
-            if (INIT_RUN) bo->rval = val;
-            return OK;
+            bo->rval = val;
+            break;
         }
         case DBF_ENUM:
         {
-            if (streamScanf (record, format, &val)) return ERROR;
-            bo->val = (val != 0);
-            return DO_NOT_CONVERT;
+            if (streamScanf(record, format, &val) == ERROR) return ERROR;
+            break;
         }
         case DBF_STRING:
         {
             char buffer[sizeof(bo->znam)];
-            if (streamScanfN (record, format, buffer, sizeof(buffer)))
+            if (streamScanfN(record, format, buffer, sizeof(buffer)) == ERROR)
                 return ERROR;
             if (strcmp (bo->znam, buffer) == 0)
             {
-                bo->val = 0;
-                return DO_NOT_CONVERT;
+                val = 0;
+                break;
             }
             if (strcmp (bo->onam, buffer) == 0)
             {
-                bo->val = 1;
-                return DO_NOT_CONVERT;
+                val = 1;
+                break;
             }
         }
+        default:
+            return ERROR;
     }
-    return ERROR;
+    bo->val = (val != 0);
+    if (bo->pact) return DO_NOT_CONVERT;
+    /* In @init handler, no processing, enforce monitor updates. */
+    monitor_mask = recGblResetAlarms(record);
+    if (bo->mlst != bo->val)
+    {
+        monitor_mask |= (DBE_VALUE | DBE_LOG);
+        bo->mlst = bo->val;
+    }
+    if (monitor_mask)
+        db_post_events(record, &bo->val, monitor_mask);
+    if (bo->oraw != bo->rval)
+    {
+        db_post_events(record,&bo->rval, monitor_mask | DBE_VALUE | DBE_LOG);
+        bo->oraw = bo->rval;
+    }
+    if (bo->orbv != bo->rbv)
+    {
+        db_post_events(record, &bo->rbv, monitor_mask | DBE_VALUE | DBE_LOG);
+        bo->orbv = bo->rbv;
+    }
+    return DO_NOT_CONVERT;
 }
 
-static long writeData (dbCommon *record, format_t *format)
+static long writeData(dbCommon *record, format_t *format)
 {
-    boRecord *bo = (boRecord *) record;
+    boRecord *bo = (boRecord *)record;
+    long val;
 
     switch (format->type)
     {
         case DBF_ULONG:
+            val = bo->rval;
+            break;
         case DBF_LONG:
-        {
-            return streamPrintf (record, format, bo->rval);
-        }
+            val = bo->mask ? (epicsInt32)bo->rval : (epicsInt16)bo->val;
+            break;
         case DBF_ENUM:
-        {
-            return streamPrintf (record, format, (long)bo->val);
-        }
+            val = bo->val;
+            break;
         case DBF_STRING:
-        {
-            return streamPrintf (record, format,
+            return streamPrintf(record, format,
                 bo->val ? bo->onam : bo->znam);
-        }
+        default:
+            return ERROR;
     }
-    return ERROR;
+    return streamPrintf(record, format, val);
 }
 
-static long initRecord (dbCommon *record)
+static long initRecord(dbCommon *record)
 {
-    boRecord *bo = (boRecord *) record;
+    boRecord *bo = (boRecord *)record;
 
-    return streamInitRecord (record, &bo->out, readData, writeData);
+    return streamInitRecord(record, &bo->out, readData, writeData);
 }
 
 struct {
