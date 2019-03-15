@@ -21,7 +21,7 @@ Vcs-Browser: https://github.com/epicsdeb/stream
 
 Package: epics-stream-dev
 Architecture: any
-Depends: libstream2.7.7 (= ${binary:Version}),libpcre3-dev,
+Depends: libstream2.8.8 (= ${binary:Version}),libpcre3-dev,
          ${shlibs:Depends}, ${misc:Depends},
          ${epics:Depends},
 Conflicts: epics-synapps, epics-synapps-dev,
@@ -32,7 +32,7 @@ Description: 'expect' for EPICS
 
 Package: libstream-headers
 Architecture: any
-Depends: libstream2.7.7 (= ${binary:Version}),
+Depends: libstream2.8.8 (= ${binary:Version}),
          ${shlibs:Depends}, ${misc:Depends},
          ${epics:Depends},
 Conflicts: epics-synapps, epics-synapps-dev,
@@ -41,7 +41,7 @@ Description: streamdevice header files
  .
  This package contains headers for development with libstream.
 
-Package: libstream2.7.7
+Package: libstream2.8.8
 Architecture: any
 Depends: ${shlibs:Depends}, ${misc:Depends},
 Description: 'expect' for EPICS
