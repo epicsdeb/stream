@@ -1,0 +1,21 @@
+From: Martin Konrad <konrad@frib.msu.edu>
+Date: Fri, 15 Mar 2019 11:07:31 -0400
+Subject: Ignore config directory
+
+---
+ Makefile | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/Makefile b/Makefile
+index b55b83e..aadd7bc 100644
+--- a/Makefile
++++ b/Makefile
+@@ -9,7 +9,7 @@ else ifneq ($(wildcard ../config),)
+ else
+   # Using our own local configuration
+   TOP = .
+-  DIRS = config configure 
++  DIRS = configure
+   src_DEPEND_DIRS := $(DIRS)
+   include $(TOP)/configure/CONFIG
+ endif
