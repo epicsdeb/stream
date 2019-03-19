@@ -21,7 +21,7 @@ Vcs-Browser: https://github.com/epicsdeb/stream
 
 Package: epics-stream-dev
 Architecture: any
-Depends: libstream2.8.8 (= ${binary:Version}),libpcre3-dev,
+Depends: libstream2.8.8 (= ${binary:Version}), libpcre3-dev, epics-calc-dev,
          ${shlibs:Depends}, ${misc:Depends},
          ${epics:Depends},
 Conflicts: epics-synapps, epics-synapps-dev,
