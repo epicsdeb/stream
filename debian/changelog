@@ -1,3 +1,9 @@
+epics-stream (2.8.8-2) unstable; urgency=medium
+
+  * Install new header file MacroMagic.h
+
+ -- Martin Konrad <konrad@frib.msu.edu>  Wed, 27 Mar 2019 13:41:06 -0400
+
 epics-stream (2.8.8-1) unstable; urgency=medium
 
   [ Daron Chabot ]
