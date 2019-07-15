@@ -4,8 +4,8 @@ Subject: don't build streamApp
 
 ---
  Makefile           | 2 +-
- streamApp/Makefile | 2 ++
- 2 files changed, 3 insertions(+), 1 deletion(-)
+ streamApp/Makefile | 3 +--
+ 2 files changed, 2 insertions(+), 3 deletions(-)
 
 diff --git a/Makefile b/Makefile
 index 6f08a33..b55b83e 100644
@@ -21,15 +21,17 @@ index 6f08a33..b55b83e 100644
  
  include $(CONFIG)/RULES_TOP
 diff --git a/streamApp/Makefile b/streamApp/Makefile
-index 18563ca..c191081 100644
+index e056a9c..9ae2466 100644
 --- a/streamApp/Makefile
 +++ b/streamApp/Makefile
-@@ -40,6 +40,8 @@ ifneq ($(words $(CALC) $(SYNAPPS)), 0)
+@@ -40,9 +40,8 @@ ifneq ($(words $(CALC) $(SYNAPPS)), 0)
  # With synApps scalcout record
  streamApp_DBD += calcSupport.dbd
  PROD_LIBS += calc
-+PROD_LIBS += sscan
+-ifneq ($(words $(SSCAN) $(SYNAPPS)), 0)
+ PROD_LIBS += sscan
+-endif
 +PROD_LIBS += seq pv
- # older calc versions require sscan
- #PROD_LIBS += sscan
  endif
+ 
+ streamApp_DBD += stream.dbd

@@ -3,19 +3,16 @@ Date: Fri, 15 Mar 2019 09:31:23 -0400
 Subject: Customize configure/RELEASE
 
 ---
- configure/RELEASE | 15 ++++++++++-----
- 1 file changed, 10 insertions(+), 5 deletions(-)
+ configure/RELEASE | 13 +++++++++----
+ 1 file changed, 9 insertions(+), 4 deletions(-)
 
 diff --git a/configure/RELEASE b/configure/RELEASE
-index 9def13d..2ce5ceb 100644
+index a575921..9d445c5 100644
 --- a/configure/RELEASE
 +++ b/configure/RELEASE
-@@ -15,12 +15,17 @@ TEMPLATE_TOP=$(EPICS_BASE)/templates/makeBaseApp/top
- #INSTALL_LOCATION_APP=<fullpathname>
- 
+@@ -17,10 +17,15 @@ TEMPLATE_TOP=$(EPICS_BASE)/templates/makeBaseApp/top
  # For SynApps:
--RELEASE=
-+#RELEASE=
+ SUPPORT=
  
 -EPICS_BASE=/usr/local/epics/base-7.0.1
 -ASYN=~/top-7/asyn4-33
