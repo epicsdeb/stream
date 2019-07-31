@@ -443,7 +443,7 @@ static unsigned int adler32(const unsigned char* data, unsigned int len, unsigne
 static unsigned int hexsum(const unsigned char* data, unsigned int len, unsigned int sum)
 {
     // Add all hex digits, ignore all other bytes.
-    unsigned int d; 
+    unsigned int d;
     while (len--)
     {
         d = toupper(*data++);
@@ -474,8 +474,23 @@ static checksum checksumMap[] =
     {"sum8",    sum,              0x00,       0x00,       1}, // 0xDD
     {"sum16",   sum,              0x0000,     0x0000,     2}, // 0x01DD
     {"sum32",   sum,              0x00000000, 0x00000000, 4}, // 0x000001DD
+    {"nsum",    sum,              0xFF,       0xFF,       1}, // 0x23
+    {"negsum",  sum,              0xFF,       0xFF,       1}, // 0x23
+    {"-sum",    sum,              0xFF,       0xFF,       1}, // 0x23
+    {"nsum8",   sum,              0xFF,       0xFF,       1}, // 0x23
+    {"negsum8", sum,              0xFF,       0xFF,       1}, // 0x23
+    {"-sum8",   sum,              0xFF,       0xFF,       1}, // 0x23
+    {"nsum16",  sum,              0xFFFF,     0xFFFF,     2}, // 0xFE23
+    {"negsum16",sum,              0xFFFF,     0xFFFF,     2}, // 0xFE23
+    {"-sum16",  sum,              0xFFFF,     0xFFFF,     2}, // 0xFE23
+    {"nsum32",  sum,              0xFFFFFFFF, 0xFFFFFFFF, 4}, // 0xFFFFFE23
+    {"negsum32",sum,              0xFFFFFFFF, 0xFFFFFFFF, 4}, // 0xFFFFFE23
+    {"-sum32",  sum,              0xFFFFFFFF, 0xFFFFFFFF, 4}, // 0xFFFFFE23
+    {"notsum",  sum,              0x00,       0xFF,       1}, // 0x22
+    {"~sum",    sum,              0x00,       0xFF,       1}, // 0x22
     {"xor",     xor8,             0x00,       0x00,       1}, // 0x31
     {"xor8",    xor8,             0x00,       0x00,       1}, // 0x31
+    {"xor8ff",  xor8,             0x00,       0xFF,       1}, // 0xCE
     {"xor7",    xor7,             0x00,       0x00,       1}, // 0x31
     {"crc8",    crc_0x07,         0x00,       0x00,       1}, // 0xF4
     {"ccitt8",  crc_0x31,         0x00,       0x00,       1}, // 0xA1
@@ -581,7 +596,7 @@ printPseudo(const StreamFormat& format, StreamBuffer& output)
 
     debug("ChecksumConverter %s: output to check: \"%s\"\n",
         checksumMap[fnum].name, output.expand(start,length)());
-        
+
     sum = (xorout ^ checksumMap[fnum].func(
         reinterpret_cast<unsigned char*>(output(start)), length, init))
         & mask[checksumMap[fnum].bytes];
@@ -591,7 +606,7 @@ printPseudo(const StreamFormat& format, StreamBuffer& output)
 
     int i;
     unsigned outchar;
-    
+
     if (format.flags & sign_flag) // decimal
     {
         // get number of decimal digits from number of bytes: ceil(xbytes*2.5)
@@ -599,7 +614,7 @@ printPseudo(const StreamFormat& format, StreamBuffer& output)
         output.print("%0*d", i, sum);
         debug("ChecksumConverter %s: decimal appending %0*d\n",
             checksumMap[fnum].name, i, sum);
-    }   
+    }
     else
     if (format.flags & alt_flag) // lsb first (little endian)
     {
@@ -653,7 +668,7 @@ scanPseudo(const StreamFormat& format, StreamBuffer& input, long& cursor)
     int length = cursor-format.width;
 
     if (format.prec > 0) length -= format.prec;
-    
+
     debug("ChecksumConverter %s: input to check: \"%s\n",
         checksumMap[fnum].name, input.expand(start,length)());
 
@@ -662,7 +677,7 @@ scanPseudo(const StreamFormat& format, StreamBuffer& input, long& cursor)
         format.flags & sign_flag ? (checksumMap[fnum].bytes + 1) * 25 / 10 - 2 :
         format.flags & (zero_flag|left_flag) ? 2 * checksumMap[fnum].bytes :
         checksumMap[fnum].bytes;
-    
+
     if (input.length() - cursor < expectedLength)
     {
         debug("ChecksumConverter %s: Input '%s' too short for checksum\n",
@@ -679,7 +694,7 @@ scanPseudo(const StreamFormat& format, StreamBuffer& input, long& cursor)
 
     int i, j;
     unsigned inchar;
-    
+
     if (format.flags & sign_flag) // decimal
     {
         unsigned int sumin = 0;
@@ -691,12 +706,12 @@ scanPseudo(const StreamFormat& format, StreamBuffer& input, long& cursor)
         }
         if (sumin != sum)
         {
-            debug("ChecksumConverter %s: Input %0*u does not match checksum %0*u\n", 
+            debug("ChecksumConverter %s: Input %0*u does not match checksum %0*u\n",
                 checksumMap[fnum].name, i, sumin, expectedLength, sum);
             return -1;
         }
     }
-    else    
+    else
     if (format.flags & alt_flag) // lsb first (little endian)
     {
         for (i = 0; i < checksumMap[fnum].bytes; i++)
@@ -705,7 +720,7 @@ scanPseudo(const StreamFormat& format, StreamBuffer& input, long& cursor)
             {
                 if (sscanf(input(cursor+2*i), "%2X", &inchar) != 1)
                 {
-                    debug("ChecksumConverter %s: Input byte '%s' is not a hex byte\n", 
+                    debug("ChecksumConverter %s: Input byte '%s' is not a hex byte\n",
                         checksumMap[fnum].name, input.expand(cursor+2*i,2)());
                     return -1;
                 }
@@ -715,13 +730,13 @@ scanPseudo(const StreamFormat& format, StreamBuffer& input, long& cursor)
             {
                 if ((input[cursor+2*i] & 0xf0) != 0x30)
                 {
-                    debug("ChecksumConverter %s: Input byte 0x%02X is not in range 0x30 - 0x3F\n", 
+                    debug("ChecksumConverter %s: Input byte 0x%02X is not in range 0x30 - 0x3F\n",
                         checksumMap[fnum].name, input[cursor+2*i]);
                     return -1;
                 }
                 if ((input[cursor+2*i+1] & 0xf0) != 0x30)
                 {
-                    debug("ChecksumConverter %s: Input byte 0x%02X is not in range 0x30 - 0x3F\n", 
+                    debug("ChecksumConverter %s: Input byte 0x%02X is not in range 0x30 - 0x3F\n",
                         checksumMap[fnum].name, input[cursor+2*i+1]);
                     return -1;
                 }
@@ -733,7 +748,7 @@ scanPseudo(const StreamFormat& format, StreamBuffer& input, long& cursor)
             }
             if (inchar != ((sum >> 8*i) & 0xff))
             {
-                debug("ChecksumConverter %s: Input byte 0x%02X does not match checksum 0x%0*X\n", 
+                debug("ChecksumConverter %s: Input byte 0x%02X does not match checksum 0x%0*X\n",
                     checksumMap[fnum].name, inchar, 2*checksumMap[fnum].bytes, sum);
                 return -1;
             }
@@ -752,13 +767,13 @@ scanPseudo(const StreamFormat& format, StreamBuffer& input, long& cursor)
             {
                 if ((input[cursor+2*i] & 0xf0) != 0x30)
                 {
-                    debug("ChecksumConverter %s: Input byte 0x%02X is not in range 0x30 - 0x3F\n", 
+                    debug("ChecksumConverter %s: Input byte 0x%02X is not in range 0x30 - 0x3F\n",
                         checksumMap[fnum].name, input[cursor+2*i]);
                     return -1;
                 }
                 if ((input[cursor+2*i+1] & 0xf0) != 0x30)
                 {
-                    debug("ChecksumConverter %s: Input byte 0x%02X is not in range 0x30 - 0x3F\n", 
+                    debug("ChecksumConverter %s: Input byte 0x%02X is not in range 0x30 - 0x3F\n",
                         checksumMap[fnum].name, input[cursor+2*i+1]);
                     return -1;
                 }
