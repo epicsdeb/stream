@@ -6,7 +6,7 @@
 * (C) 2005 Dirk Zimoch (dirk.zimoch@psi.ch)                    *
 *                                                              *
 * This is an EPICS record Interface for StreamDevice.          *
-* Please refer to the HTML files in ../doc/ for a detailed     *
+* Please refer to the HTML files in ../docs/ for a detailed    *
 * documentation.                                               *
 *                                                              *
 * If you do any changes in this file, you are not allowed to   *
@@ -19,14 +19,12 @@
 *                                                              *
 ***************************************************************/
 
-#include <string.h>
-#include <mbbiRecord.h>
+#include "mbbiRecord.h"
 #include "devStream.h"
-#include <epicsExport.h>
 
-static long readData (dbCommon *record, format_t *format)
+static long readData(dbCommon *record, format_t *format)
 {
-    mbbiRecord *mbbi = (mbbiRecord *) record;
+    mbbiRecord *mbbi = (mbbiRecord *)record;
     unsigned long val;
     int i;
 
@@ -35,36 +33,36 @@ static long readData (dbCommon *record, format_t *format)
         case DBF_ULONG:
         case DBF_LONG:
         {
-            if (streamScanf (record, format, &val)) return ERROR;
+            if (streamScanf(record, format, &val) == ERROR) return ERROR;
             /* read VAL or RBV? Look if any value is defined */
             if (mbbi->sdef) for (i=0; i<16; i++)
             {
                 if ((&mbbi->zrvl)[i])
                 {
                     if (mbbi->mask) val &= mbbi->mask;
-                    mbbi->rval = val;
+                    mbbi->rval = (epicsEnum16)val;
                     return OK;
                 }
             }
-            mbbi->val = (short)val;
+            mbbi->val = (epicsEnum16)val;
             return DO_NOT_CONVERT;
         }
         case DBF_ENUM:
         {
-            if (streamScanf (record, format, &val)) return ERROR;
-            mbbi->val = (short)val;
+            if (streamScanf(record, format, &val) == ERROR) return ERROR;
+            mbbi->val = (epicsEnum16)val;
             return DO_NOT_CONVERT;
         }
         case DBF_STRING:
         {
             char buffer[sizeof(mbbi->zrst)];
-            if (streamScanfN (record, format, buffer, sizeof(buffer)))
+            if (streamScanfN(record, format, buffer, sizeof(buffer)) == ERROR)
                 return ERROR;
             for (val = 0; val < 16; val++)
             {
                 if (strcmp ((&mbbi->zrst)[val], buffer) == 0)
                 {
-                    mbbi->val = (short)val;
+                    mbbi->val = (epicsEnum16)val;
                     return DO_NOT_CONVERT;
                 }
             }
@@ -73,15 +71,16 @@ static long readData (dbCommon *record, format_t *format)
     return ERROR;
 }
 
-static long writeData (dbCommon *record, format_t *format)
+static long writeData(dbCommon *record, format_t *format)
 {
-    mbbiRecord *mbbi = (mbbiRecord *) record;
+    mbbiRecord *mbbi = (mbbiRecord *)record;
     long val;
     int i;
 
     switch (format->type)
     {
         case DBF_LONG:
+        case DBF_ULONG:
         {
             /* print VAL or RVAL ? Look if any value is defined */
             val = mbbi->val;
@@ -94,28 +93,28 @@ static long writeData (dbCommon *record, format_t *format)
                     break;
                 }
             }
-            return streamPrintf (record, format, val);
+            return streamPrintf(record, format, val);
         }
         case DBF_ENUM:
         {
-            return streamPrintf (record, format, (long) mbbi->val);
+            return streamPrintf(record, format, (long)mbbi->val);
         }
         case DBF_STRING:
         {
             if (mbbi->val >= 16) return ERROR;
-            return streamPrintf (record, format,
+            return streamPrintf(record, format,
                 mbbi->zrst + sizeof(mbbi->zrst) * mbbi->val);
         }
     }
     return ERROR;
 }
 
-static long initRecord (dbCommon *record)
+static long initRecord(dbCommon *record)
 {
-    mbbiRecord *mbbi = (mbbiRecord *) record;
+    mbbiRecord *mbbi = (mbbiRecord *)record;
 
     mbbi->mask <<= mbbi->shft;
-    return streamInitRecord (record, &mbbi->inp, readData, writeData) == ERROR ?
+    return streamInitRecord(record, &mbbi->inp, readData, writeData) == ERROR ?
         ERROR : OK;
 }
 

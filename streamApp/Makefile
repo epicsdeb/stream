@@ -1,17 +1,13 @@
-TOP=../..
-
-# Look if we have EPICS R3.13 or R3.14
-ifeq ($(wildcard $(TOP)/configure),)
-# EPICS R3.13
-include $(TOP)/config/CONFIG_APP
-# The real work is in Makefile.Vx
-include $(TOP)/config/RULES_ARCHS
+TOP = ../..
+ifneq ($(wildcard ../../configure),)
+  include $(TOP)/configure/CONFIG
+else ifneq ($(wildcard ../../config),)
+  include $(TOP)/config/CONFIG_APP
+  include $(TOP)/config/RULES_ARCHS
 else
-
-# EPICS R3.14
-include $(TOP)/configure/CONFIG
-
-#HOST_OPT = NO
+  TOP= ..
+  include $(TOP)/configure/CONFIG
+endif
 
 PROD = streamApp
 DBD  = streamApp.dbd
@@ -20,7 +16,9 @@ streamApp_DBD += base.dbd
 
 # In 3.14.12 aaiRecord.dbd and aaoRecord.dbd are part of base.dbd
 # In earlier versions, these records are buggy and not included by default
-#streamApp_DBD += aaiRecord.dbd aaoRecord.dbd
+ifndef BASE_3_15
+streamApp_DBD += aaiRecord.dbd aaoRecord.dbd
+endif
 
 PROD_SRCS += streamApp_registerRecordDeviceDriver.cpp
 PROD_SRCS_DEFAULT = streamAppMain.cc
@@ -41,11 +39,9 @@ endif
 ifneq ($(words $(CALC) $(SYNAPPS)), 0)
 # With synApps scalcout record
 streamApp_DBD += calcSupport.dbd
-streamApp_DBD += streamSynApps.dbd
 PROD_LIBS += calc
 # older calc versions require sscan
 #PROD_LIBS += sscan
-PROD_LIBS_DEFAULT += streamSynApps
 endif
 
 streamApp_DBD += stream.dbd
@@ -62,19 +58,14 @@ endif
 
 PROD_LIBS += $(EPICS_BASE_IOC_LIBS)
 
-# Write StreamDevice debug output to this file
-# If unset output goes to stdout
-CPPFLAGS += -DDEBUGFILE=StreamDebug.log
+# switch off annoying rset warnings in 3.16+
+CPPFLAGS += -DUSE_TYPED_RSET
 
-include $(TOP)/configure/RULES
+-include $(TOP)/configure/RULES
 
-ifeq ($(BASE_3_14), YES)
-clean:: myclean
+ifdef BASE_3_15
+clean:
 else
-clean: myclean
+clean::
 endif
-
-myclean:
-	$(RM) core* StreamDebug.log
-
-endif
+	$(RM) core* *.log tests/test.* tests/*log

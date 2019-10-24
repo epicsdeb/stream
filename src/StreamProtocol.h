@@ -5,7 +5,7 @@
 * (C) 2005 Dirk Zimoch (dirk.zimoch@psi.ch)                    *
 *                                                              *
 * This is the protocol parser of StreamDevice.                 *
-* Please refer to the HTML files in ../doc/ for a detailed     *
+* Please refer to the HTML files in ../docs/ for a detailed    *
 * documentation.                                               *
 *                                                              *
 * If you do any changes in this file, you are not allowed to   *
@@ -21,19 +21,19 @@
 #ifndef StreamProtocol_h
 #define StreamProtocol_h
 
-#include "StreamBuffer.h"
 #include <stdio.h>
+#include "StreamBuffer.h"
+#include "MacroMagic.h"
 
-enum FormatType {NoFormat, ScanFormat, PrintFormat};
+ENUM (FormatType,
+    NoFormat, ScanFormat, PrintFormat);
 
 class StreamProtocolParser
 {
 public:
 
-    enum Codes
-    {
-        eos = 0, skip, whitespace, format, format_field, last_function_code
-    };
+    ENUM (Codes,
+        eos, skip, whitespace, format, format_field, last_function_code);
 
     class Client;
 
@@ -59,6 +59,8 @@ public:
         bool compileCommands(StreamBuffer&, const char*& source, Client*);
         bool replaceVariable(StreamBuffer&, const char* varname);
         const Variable* getVariable(const char* name);
+        bool compileString(StreamBuffer& buffer, const char*& source,
+            FormatType formatType, Client*, int quoted, int recursionDepth);
 
     public:
 
@@ -73,7 +75,9 @@ public:
         bool compileNumber(unsigned long& number, const char*& source,
             unsigned long max = 0xFFFFFFFF);
         bool compileString(StreamBuffer& buffer, const char*& source,
-            FormatType formatType = NoFormat, Client* = NULL, int quoted = false);
+            FormatType formatType = NoFormat, Client* client = NULL, int quoted = false) {
+            return compileString(buffer, source, formatType, client, quoted, 0);
+        }
         bool checkUnused();
         ~Protocol();
         void report();
@@ -114,7 +118,7 @@ private:
     bool parseAssignment(const char* variable, Protocol&);
     bool parseValue(StreamBuffer& buffer, bool lazy = false);
 
-protected: 
+protected:
     ~StreamProtocolParser(); // get rid of cygnus-2.7.2 compiler warning
 
 public:

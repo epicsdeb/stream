@@ -4,7 +4,7 @@
 * (C) 2005 Dirk Zimoch (dirk.zimoch@psi.ch)                    *
 *                                                              *
 * This is error and debug message handling of StreamDevice.    *
-* Please refer to the HTML files in ../doc/ for a detailed     *
+* Please refer to the HTML files in ../docs/ for a detailed    *
 * documentation.                                               *
 *                                                              *
 * If you do any changes in this file, you are not allowed to   *
@@ -28,20 +28,21 @@
 #endif
 
 extern int streamDebug;
-extern void (*StreamPrintTimestampFunction)(char* buffer, int size);
+extern int streamError;
+extern void (*StreamPrintTimestampFunction)(char* buffer, size_t size);
 
 void StreamError(int line, const char* file, const char* fmt, ...)
-__attribute__ ((format(printf,3,4)));
+__attribute__((__format__(__printf__,3,4)));
 
 void StreamVError(int line, const char* file, const char* fmt, va_list args)
-__attribute__ ((format(printf,3,0)));
+__attribute__((__format__(__printf__,3,0)));
 
 void StreamError(const char* fmt, ...)
-__attribute__ ((format(printf,1,2)));
+__attribute__((__format__(__printf__,1,2)));
 
 inline void StreamVError(const char* fmt, va_list args)
 {
-    StreamVError(0, NULL, fmt, args); 
+    StreamVError(0, NULL, fmt, args);
 }
 
 class StreamDebugClass
@@ -52,7 +53,7 @@ public:
     StreamDebugClass(const char* file, int line) :
         file(file), line(line) {}
     int print(const char* fmt, ...)
-        __attribute__ ((format(printf,2,3)));
+        __attribute__((__format__(__printf__,2,3)));
 };
 
 inline StreamDebugClass
@@ -61,10 +62,5 @@ StreamDebugObject(const char* file, int line)
 
 #define error StreamError
 #define debug (!streamDebug)?0:StreamDebugObject(__FILE__,__LINE__).print
-
-#if (__GNUC__ == 2 && __GNUC_MINOR__ == 7)
-/* Bug in cygnus-2.7.2 compiler: temporary objects crash the compiler */
-#define NO_TEMPORARY
-#endif
 
 #endif

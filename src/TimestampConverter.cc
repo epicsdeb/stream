@@ -5,7 +5,7 @@
 * (C) 2010 Dirk Zimoch (dirk.zimoch@psi.ch)                    *
 *                                                              *
 * This is the time stamp converter of StreamDevice.            *
-* Please refer to the HTML files in ../doc/ for a detailed     *
+* Please refer to the HTML files in ../docs/ for a detailed    *
 * documentation.                                               *
 *                                                              *
 * If you do any changes in this file, you are not allowed to   *
@@ -29,10 +29,10 @@
 /* timezone in UNIX contains the seconds between UTC and local time,
 but not in Free-BSD! Here timezone() is a function delivering
 the time zone abbreviation (e.g. CET). Alternatively, the timezone
-value can also be gained from tm_gmtoff of the tm-structure. 
+value can also be gained from tm_gmtoff of the tm-structure.
                                                     HJK, 4.4.14 */
 /* The same seems to be true for other BSDs. DZ. */
-                                                    
+
 #if defined(__FreeBSD__) || \
     defined(__NetBSD__) || \
     defined(__OpenBSD__) || \
@@ -47,7 +47,7 @@ static int timezone_bsd=0;
 #ifdef _WIN32
 #define tzset() _tzset()
 #define timezone _timezone
-#define localtime_r(timet,tm) localtime_s(tm,timet) /* Windows sucks */
+#define localtime_r(timet,tm) localtime_s(tm,timet)
 #endif
 
 #ifdef __rtems__
@@ -75,7 +75,7 @@ class TimestampConverter : public StreamFormatConverter
 {
     int parse(const StreamFormat&, StreamBuffer&, const char*&, bool);
     bool printDouble(const StreamFormat&, StreamBuffer&, double);
-    int scanDouble(const StreamFormat&, const char*, double&);
+    ssize_t scanDouble(const StreamFormat&, const char*, double&);
 };
 
 int TimestampConverter::
@@ -151,10 +151,11 @@ printDouble(const StreamFormat& format, StreamBuffer& output, double value)
     struct tm brokenDownTime;
     char buffer [40];
     char fracbuffer [15];
-    int length;
+    size_t length;
     time_t sec;
     double frac;
-    int i, n;
+    ssize_t i;
+    size_t n;
     char* c;
     char* p;
 
@@ -172,7 +173,7 @@ printDouble(const StreamFormat& format, StreamBuffer& output, double value)
         n = strtol(output(i+1), &c, 10);
         if (*c++ != 'f') return false;
         /* print fractional part */
-        sprintf(fracbuffer, "%.*f", n, frac);
+        sprintf(fracbuffer, "%.*f", (int)n, frac);
         p = strchr(fracbuffer, '.')+1;
         output.replace(i, c-output(i), p);
     }
@@ -183,10 +184,10 @@ printDouble(const StreamFormat& format, StreamBuffer& output, double value)
    all fields, e.g. %z.
  */
 
-static int strmatch(const char*& input, const char** strings, int minlen)
+static int strmatch(const char*& input, const char** strings, size_t minlen)
 {
     int i;
-    int c;
+    size_t c;
 
     for (i=0; strings[i]; i++) {
         for (c=0; ; c++)
@@ -516,9 +517,7 @@ startover:
     return input;
 }
 
-
-
-int TimestampConverter::
+ssize_t TimestampConverter::
 scanDouble(const StreamFormat& format, const char* input, double& value)
 {
     struct tm brokenDownTime;

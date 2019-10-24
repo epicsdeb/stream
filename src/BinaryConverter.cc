@@ -5,7 +5,7 @@
 * (C) 2005 Dirk Zimoch (dirk.zimoch@psi.ch)                    *
 *                                                              *
 * This is the binary format converter of StreamDevice.         *
-* Please refer to the HTML files in ../doc/ for a detailed     *
+* Please refer to the HTML files in ../docs/ for a detailed    *
 * documentation.                                               *
 *                                                              *
 * If you do any changes in this file, you are not allowed to   *
@@ -29,7 +29,7 @@ class BinaryConverter : public StreamFormatConverter
 {
     int parse(const StreamFormat&, StreamBuffer&, const char*&, bool);
     bool printLong(const StreamFormat&, StreamBuffer&, long);
-    int scanLong(const StreamFormat&, const char*, long&);
+    ssize_t scanLong(const StreamFormat&, const char*, long&);
 };
 
 int BinaryConverter::
@@ -42,7 +42,7 @@ parse(const StreamFormat& fmt, StreamBuffer& info,
         info.append("01");
         return unsigned_format;
     }
-    
+
     // user defined characters for %B (next 2 in source)
     if (*source)
     {
@@ -70,14 +70,14 @@ printLong(const StreamFormat& fmt, StreamBuffer& output, long value)
         prec = 32;
 #if (LONG_BIT > 32)
         if (x > 0xFFFFFFFF)  { prec = 64;  x >>=32; }
-#endif 
+#endif
         if (x <= 0x0000FFFF) { prec -= 16; x <<=16; }
         if (x <= 0x00FFFFFF) { prec -= 8; x <<=8; }
         if (x <= 0x0FFFFFFF) { prec -= 4; x <<=4; }
         if (x <= 0x3FFFFFFF) { prec -= 2; x <<=2; }
         if (x <= 0x7FFFFFFF) { prec -= 1; }
     }
-    int width = prec;
+    unsigned long width = prec;
     if (fmt.width > width) width = fmt.width;
     char zero = fmt.info[0];
     char one = fmt.info[1];
@@ -88,7 +88,7 @@ printLong(const StreamFormat& fmt, StreamBuffer& output, long value)
         if (!(fmt.flags & left_flag))
         {
             // pad left
-            while (width > prec)
+            while (width > (unsigned int)prec)
             {
                 output.append(' ');
                 width--;
@@ -112,7 +112,7 @@ printLong(const StreamFormat& fmt, StreamBuffer& output, long value)
         if (!(fmt.flags & left_flag))
         {
             // pad left
-            while (width > prec)
+            while (width > (unsigned int)prec)
             {
                 output.append(fill);
                 width--;
@@ -132,39 +132,39 @@ printLong(const StreamFormat& fmt, StreamBuffer& output, long value)
     return true;
 }
 
-int BinaryConverter::
+ssize_t BinaryConverter::
 scanLong(const StreamFormat& fmt, const char* input, long& value)
 {
     long val = 0;
-    int width = fmt.width;
+    long width = fmt.width;
     if (width == 0) width = -1;
-    int length = 0;
+    size_t consumed = 0;
     char zero = fmt.info[0];
     char one = fmt.info[1];
     if (!isspace(zero) && !isspace(one))
-        while (isspace(input[length])) length++; // skip whitespaces
-    if (input[length] != zero && input[length] != one) return -1;
+        while (isspace(input[consumed])) consumed++; // skip whitespaces
+    if (input[consumed] != zero && input[consumed] != one) return -1;
     if (fmt.flags & alt_flag)
     {
         // little endian (least significan bit first)
         long mask = 1;
-        while (width-- && (input[length] == zero || input[length] == one))
+        while (width-- && (input[consumed] == zero || input[consumed] == one))
         {
-            if (input[length++] == one) val |= mask;
+            if (input[consumed++] == one) val |= mask;
             mask <<= 1;
         }
     }
     else
     {
         // big endian (most significan bit first)
-        while (width-- && (input[length] == zero || input[length] == one))
+        while (width-- && (input[consumed] == zero || input[consumed] == one))
         {
             val <<= 1;
-            if (input[length++] == one) val |= 1;
+            if (input[consumed++] == one) val |= 1;
         }
     }
     value = val;
-    return length;
+    return consumed;
 }
 
 RegisterConverter (BinaryConverter, "bB");

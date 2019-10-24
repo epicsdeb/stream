@@ -1,6 +1,6 @@
 Source: epics-stream
 Section: libdevel
-Priority: extra
+Priority: optional
 Maintainer: Martin Konrad <konrad@frib.msu.edu>
 Build-Depends: debhelper (>= 9.20141010), dpkg-dev (>= 1.17.14),
                epics-debhelper (>= 8.14~), libpcre3-dev,
@@ -14,14 +14,14 @@ Build-Depends: debhelper (>= 9.20141010), dpkg-dev (>= 1.17.14),
                rtems-calc-mvme5500 <pkg.epics-base.rtems>,
                rtems-calc-pc386 <pkg.epics-base.rtems>,
 XS-Rtems-Build-Depends: rtems-epics, rtems-seq, rtems-sscan, rtems-calc, rtems-asyn,
-Standards-Version: 3.9.6
+Standards-Version: 4.3.0
 Homepage: http://epics.web.psi.ch/software/streamdevice/
 Vcs-Git: https://github.com/epicsdeb/stream.git
 Vcs-Browser: https://github.com/epicsdeb/stream
 
 Package: epics-stream-dev
 Architecture: any
-Depends: libstream2.7.7 (= ${binary:Version}),libpcre3-dev,
+Depends: libstream2.8.8 (= ${binary:Version}), libpcre3-dev, epics-calc-dev,
          ${shlibs:Depends}, ${misc:Depends},
          ${epics:Depends},
 Conflicts: epics-synapps, epics-synapps-dev,
@@ -32,7 +32,7 @@ Description: 'expect' for EPICS
 
 Package: libstream-headers
 Architecture: any
-Depends: libstream2.7.7 (= ${binary:Version}),
+Depends: libstream2.8.8 (= ${binary:Version}),
          ${shlibs:Depends}, ${misc:Depends},
          ${epics:Depends},
 Conflicts: epics-synapps, epics-synapps-dev,
@@ -41,7 +41,7 @@ Description: streamdevice header files
  .
  This package contains headers for development with libstream.
 
-Package: libstream2.7.7
+Package: libstream2.8.8
 Architecture: any
 Depends: ${shlibs:Depends}, ${misc:Depends},
 Description: 'expect' for EPICS
