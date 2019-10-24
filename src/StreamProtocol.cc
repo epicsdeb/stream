@@ -5,7 +5,7 @@
 * (C) 2005 Dirk Zimoch (dirk.zimoch@psi.ch)                    *
 *                                                              *
 * This is the protocol parser of StreamDevice.                 *
-* Please refer to the HTML files in ../doc/ for a detailed     *
+* Please refer to the HTML files in ../docs/ for a detailed    *
 * documentation.                                               *
 *                                                              *
 * If you do any changes in this file, you are not allowed to   *
@@ -281,20 +281,27 @@ parseProtocol(Protocol& protocol, StreamBuffer* commands)
                 // end of protocol or handler definition
                 return true;
             }
-            error(line, filename(), "Stray '}' in global context\n");
+            error(line, filename(), "Unexpected '}' (no matching '{') in global context\n");
             return false;
         }
-        if (strchr("{=", token[0]))
+        if (token[0] == '{')
         {
-            error(line, filename(), "Expect name before '%c'\n", token[0]);
+            error(line, filename(), "Expect %s name before '%c'\n", 
+                isGlobalContext(commands) ? "protocol" : "handler",
+                token[0]);
+            return false;
+        }
+        if (token[0] == '=')
+        {
+            error(line, filename(), "Expect variable name before '%c'\n", token[0]);
+            return false;
+        }
+        if (token[0] != '@' && !isalpha(token[0]))
+        {
+            error(line, filename(), "Unexpected '%s'\n", token());
             return false;
         }
         do op = readChar(); while (op == ' '); // what comes after token?
-        if (op == EOF)
-        {
-            error(line, filename(), "Unexpected end of file after: %s\n", token());
-            return false;
-        }
         if (op == '=')
         {
             // variable assignment
@@ -367,16 +374,20 @@ parseProtocol(Protocol& protocol, StreamBuffer* commands)
             *ppP = pP;
             continue;
         }
+        if (token[0] == '@')
+        {
+            error(line, filename(), "Expect '{' after handler '%s'\n", token());
+            return false;
+        }
         // Must be a command or a protocol reference.
         if (isGlobalContext(commands))
         {
-            error(line, filename(), "Expect '=' or '{' instead of '%c' after '%s'\n",
-                op, token());
+            error(line, filename(), "Expect '=' or '{' instead after '%s'\n",
+                token());
             return false;
         }
         if (op == ';' || op == '}') // no arguments
         {
-            if (op == '}') ungetc(op, file);
             // Check for protocol reference
             Protocol* p;
             for (p = protocols; p; p = p->next)
@@ -384,14 +395,16 @@ parseProtocol(Protocol& protocol, StreamBuffer* commands)
                 if (p->protocolname.startswith(token()))
                 {
                     commands->append(*p->commands);
+                    if (op == '}') ungetc(op, file);
                     break;
                 }
             }
             if (p) continue;
+            // Fall through for commands without arguments
         }
         // must be a command (validity will be checked later)
         commands->append(token); // is null separated
-        ungetc(op, file); // put back first char of value
+        ungetc(op, file); // put back first char after command
         if (parseValue(*commands, true) == false)
         {
             line = startline;
@@ -446,7 +459,7 @@ terminated and the line number is stored for later use.
 Each time newline is read, line is incremented.
 */
     if (!specialchars) specialchars = specialChars;
-    long token = buffer.length();
+    size_t token = buffer.length();
     int l = line;
 
     int c = readChar();
@@ -484,7 +497,7 @@ Each time newline is read, line is incremented.
         }
         if (c == EOF)
         {
-            error(line, filename(), "Unexpected end of file after '$'\n");
+            error(line, filename(), "Unexpected end of file after '$' (looking for '}')\n");
             return false;
         }
         if (strchr (specialchars, c))
@@ -512,19 +525,30 @@ Each time newline is read, line is incremented.
                     buffer(token));
                 return false;
             }
-            if (c == '$' && buffer[-1] == '\\')
-            {
-                // quoted variable reference
-                // terminate string here and do variable in next pass
-                buffer[-1] = quote;
-                ungetc(c, file);
-                break;
-            }
             buffer.append(c);
-            if (c == quote && buffer[-2] != '\\')
+            if (c == quote)
             {
                 quote = false;
                 break;
+            }
+            if (c == '\\')
+            {
+                c = getc(file);
+                if (c == '$')
+                {
+                    // quoted variable reference
+                    // terminate string here and do variable in next pass
+                    buffer[-1] = quote;
+                    ungetc(c, file);
+                    break;
+                }
+                if (c == EOF || c == '\n')
+                {
+                    error(line, filename(), "Backslash at end of line: %s\n",
+                        buffer(token));
+                    return false;
+                }
+                buffer.append(c);
             }
             c = getc(file);
         }
@@ -536,7 +560,7 @@ Each time newline is read, line is incremented.
         // end of file
         if (!eofAllowed)
         {
-            error(line, filename(), "Unexpected end of file\n");
+            error(line, filename(), "Unexpected end of file (looking for '}')\n");
             return false;
         }
         buffer.append('\0');
@@ -580,7 +604,7 @@ parseAssignment(const char* name, Protocol& protocol)
 bool StreamProtocolParser::
 parseValue(StreamBuffer& buffer, bool lazy)
 {
-    long token;
+    size_t token;
     int c;
 
     do c = readChar(); while (c == ' '); // skip leading spaces
@@ -594,7 +618,7 @@ parseValue(StreamBuffer& buffer, bool lazy)
         c = buffer[token];
         if (c == '$') // a variable
         {
-            long varname = token+1;
+            size_t varname = token+1;
             if (buffer[varname] == '"') varname++; // quoted variable
             if (lazy || (buffer[varname] >= '0' && buffer[varname] <= '9'))
             {
@@ -656,11 +680,15 @@ printString(StreamBuffer& buffer, const char* s)
                 buffer.append("\\\\");
                 break;
             case format_field:
+                // <format_field> field <eos> addrLength AddressStructure formatstr <eos> StreamFormat [info <eos>]
+                unsigned short fieldSize;
                 buffer.print("%%(%s)", ++s);
                 while (*s++);
-                s += extract<unsigned short>(s); // skip fieldaddress
+                fieldSize = extract<unsigned short>(s);
+                s += fieldSize; // skip fieldAddress
                 goto format;
             case format:
+                // <format> formatstr <eos> StreamFormat [info <eos>]
                 buffer.append('%');
                 s++;
 format:         {
@@ -866,12 +894,12 @@ getEnumVariable(const char* varname, unsigned short& value, const char** enumstr
 bool StreamProtocolParser::Protocol::
 getStringVariable(const char* varname, StreamBuffer& value, bool* defined)
 {
+    value.clear();
     const Variable* pvar = getVariable(varname);
     if (!pvar) return true;
     if (defined) *defined = true;
     const StreamBuffer* pvalue = &pvar->value;
     const char* source = (*pvalue)();
-    value.clear();
     if (!compileString(value, source))
     {
         error("in string variable '%s' in protocol file '%s' line %d\n",
@@ -891,12 +919,12 @@ getStringVariable(const char* varname, StreamBuffer& value, bool* defined)
 }
 
 bool StreamProtocolParser::Protocol::
-getCommands(const char* handlername,StreamBuffer& code, Client* client)
+getCommands(const char* handlername, StreamBuffer& code, Client* client)
 {
+    code.clear();
     const Variable* pvar = getVariable(handlername);
     if (!pvar) return true;
     if (!pvar->value) return true;
-    code.clear();
     const char* source = pvar->value();
     debug("StreamProtocolParser::Protocol::getCommands"
         "(handlername=\"%s\", client=\"%s\"): source=%s\n",
@@ -974,7 +1002,7 @@ replaceVariable(StreamBuffer& buffer, const char* varname)
     }
     // quoted
     buffer.append('"');
-    long i;
+    size_t i;
     bool escaped = false;
     for (i = 0; i < v->value.length(); i++)
     {
@@ -1019,7 +1047,7 @@ compileNumber(unsigned long& number, const char*& source, unsigned long max)
         {
             buffer.append(source);
         }
-        source += strlen(source)+1+sizeof(int); // skip eos + line
+        source += strlen(source) + 1 + sizeof(int); // skip eos + line
     };
     n = strtoul(buffer(), &end, 0);
     if (end == buffer())
@@ -1057,17 +1085,17 @@ compileNumber(unsigned long& number, const char*& source, unsigned long max)
 
 bool StreamProtocolParser::Protocol::
 compileString(StreamBuffer& buffer, const char*& source,
-    FormatType formatType, Client* client, int quoted)
+    FormatType formatType, Client* client, int quoted, int recursionDepth)
 {
     bool escaped = false;
     int newline = 0;
     StreamBuffer formatbuffer;
-    int formatpos = buffer.length();
+    size_t formatpos = buffer.length();
     line = getLineNumber(source);
 
     debug("StreamProtocolParser::Protocol::compileString "
-        "line %d source=\"%s\"\n",
-        line, source);
+        "line %d source=\"%s\" formatType=%s quoted=%i recursionDepth=%d\n",
+        line, source, ::toStr(formatType), quoted, recursionDepth);
 
     // coding is done in two steps:
     // 1) read a line from protocol source and code quoted strings,
@@ -1077,19 +1105,18 @@ compileString(StreamBuffer& buffer, const char*& source,
 
     while (1)
     {
-        debug("StreamProtocolParser::Protocol::compileString "
-            "buffer so far: %s\n", buffer.expand()());
         // this is step 2: replacing the formats
         if (!*source || (newline = getLineNumber(source)) != line)
         {
+            debug("StreamProtocolParser::Protocol::compileString line %i: %s\n", line, buffer.expand()());
             // compile all formats in this line
             // We do this here after all variables in this line
             // have been replaced and after string has been coded.
-            if (formatType != NoFormat)
+            if (recursionDepth == 0 && formatType != NoFormat)
             {
                 int nformats=0;
                 char c;
-                while ((c = buffer[formatpos]) != '\0')
+                while (formatpos < buffer.length() && (c = buffer[formatpos]) != '\0')
                 {
                     if (c == esc) {
                         // ignore escaped %
@@ -1112,7 +1139,7 @@ compileString(StreamBuffer& buffer, const char*& source,
                                 formatbuffer());
                             return false;
                         }
-                        int formatlen = p - buffer(formatpos);
+                        size_t formatlen = p - buffer(formatpos);
                         buffer.replace(formatpos, formatlen, formatbuffer);
                         debug("StreamProtocolParser::Protocol::compileString "
                             "replaced by: \"%s\"\n", buffer.expand(formatpos)());
@@ -1247,10 +1274,10 @@ compileString(StreamBuffer& buffer, const char*& source,
             {
                 StreamBuffer value;
                 if (!replaceVariable(value, source)) return false;
-                source += strlen(source)+1+sizeof(int);
+                source += strlen(source) + 1 + sizeof(int);
                 p = value();
                 int saveline = line;
-                if (!compileString(buffer, p, formatType, client))
+                if (!compileString(buffer, p, formatType, client, false, recursionDepth + 1))
                     return false;
                 line = saveline;
                 continue;
@@ -1332,7 +1359,7 @@ compileString(StreamBuffer& buffer, const char*& source,
             {"gs",   0x1D},
             {"rs",   0x1E},
             {"us",   0x1F},
-            {"del",  0x7f}
+            {"del",  0x7F}
         };
         size_t i;
         c=-1;
@@ -1348,19 +1375,20 @@ compileString(StreamBuffer& buffer, const char*& source,
                         source);
                     return false;
                 }
-                if (formatType != NoFormat)
+                if (formatType != NoFormat &&
+                    i > 2 /* do not escape skip */)
                 {
                     buffer.append(esc);
                 }
                 buffer.append(c);
-                source += strlen(source)+1+sizeof(int);
+                source += strlen(source) + 1 + sizeof(int);
                 break;
             }
         }
         if (c >= 0) continue;
         // source may contain a function name
         error(line, filename(),
-            "Unexpected word: \"%s\"\n", source);
+            "Unexpected '%s' in string\n", source);
         return false;
     }
     debug("StreamProtocolParser::Protocol::compileString buffer=%s\n", buffer.expand()());
@@ -1388,7 +1416,7 @@ compileFormat(StreamBuffer& buffer, const char*& formatstr,
 */
     const char* source = formatstr;
     StreamFormat streamFormat;
-    int fieldname = 0;
+    size_t fieldname = 0;
     // look for fieldname
     if (source[1] == '(')
     {
@@ -1428,12 +1456,12 @@ compileFormat(StreamBuffer& buffer, const char*& formatstr,
         buffer.append(format);
     }
     const char* formatstart = source + 1;
-    
+
     // parse format and get info string
     StreamBuffer infoString;
     int type = StreamFormatConverter::parseFormat(source,
         formatType, streamFormat, infoString);
-        
+
     if (!type)
     {
         // parsing failed
@@ -1470,17 +1498,15 @@ compileFormat(StreamBuffer& buffer, const char*& formatstr,
     // add formatstr for debug purpose
     buffer.append(formatstart, source-formatstart).append(eos);
 
-#ifndef NO_TEMPORARY
     debug("StreamProtocolParser::Protocol::compileFormat: formatstring=\"%s\"\n",
         StreamBuffer(formatstart, source-formatstart).expand()());
-#endif
 
     // add streamFormat structure and info
     buffer.append(&streamFormat, sizeof(streamFormat));
     buffer.append(infoString);
 
     debug("StreamProtocolParser::Protocol::compileFormat: format.type=%s, "
-        "infolen=%d infostring=\"%s\"\n",
+        "infolen=%ld infostring=\"%s\"\n",
         StreamFormatTypeStr[streamFormat.type],
         streamFormat.infolen, infoString.expand()());
     formatstr = source; // move pointer after parsed format
@@ -1496,7 +1522,7 @@ compileCommands(StreamBuffer& buffer, const char*& source, Client* client)
     while (*source)
     {
         command = source;
-        args = source + strlen(source)+1+sizeof(int);
+        args = source + strlen(source) + 1 + sizeof(int);
         if (!client->compileCommand(this, buffer, command, args))
         {
             error(getLineNumber(source), filename(),

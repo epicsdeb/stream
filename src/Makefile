@@ -18,18 +18,16 @@
 #                                                              #
 ################################################################
 
-TOP=../..
-
-# Look if we have EPICS R3.13 or R3.14
-ifeq ($(wildcard $(TOP)/configure),)
-# EPICS R3.13
-include $(TOP)/config/CONFIG_APP
-# The real work is in Makefile.Vx
-include $(TOP)/config/RULES_ARCHS
+TOP = ../..
+ifneq ($(wildcard ../../configure),)
+  include $(TOP)/configure/CONFIG
+else ifneq ($(wildcard ../../config),)
+  include $(TOP)/config/CONFIG_APP
+  include $(TOP)/config/RULES_ARCHS
 else
-
-# EPICS R3.14
-include $(TOP)/configure/CONFIG
+  TOP= ..
+  include $(TOP)/configure/CONFIG
+endif
 
 -include CONFIG_STREAM
 -include ../CONFIG_STREAM
@@ -40,13 +38,8 @@ DBD += $(LIBRARY_DEFAULT).dbd
 
 ifdef ASYN
 LIB_LIBS += asyn
-BUSSES += AsynDriver
-endif
-
-ifdef T_A
-ifndef BUSSES
-$(error No bus interface defined! Didn't you set ASYN in your RELEASE file?)
-endif
+else
+$(warning Asyn not included! Didn't you set ASYN in your RELEASE file?)
 endif
 
 ifeq ($(LOADABLE_MODULE),YES)
@@ -54,7 +47,7 @@ SRCS += $(LIBRARY_DEFAULT)_registerRecordDeviceDriver.cpp
 endif 
 SRCS += $(BUSSES:%=%Interface.cc)
 SRCS += $(FORMATS:%=%Converter.cc)
-SRCS += $(RECORDS:%=dev%Stream.c)
+SRCS += $(RECORDTYPES:%=dev%Stream.c)
 SRCS += $(STREAM_SRCS)
 
 # find system wide or local PCRE header and library
@@ -75,11 +68,13 @@ LIB_LIBS += $(EPICS_BASE_IOC_LIBS)
 
 INC += devStream.h
 
-include $(TOP)/configure/RULES
+# switch off annoying rset warnings in 3.16+
+CPPFLAGS += -DUSE_TYPED_RSET
 
-# Update version string (contains __DATE__ and __TIME__)
-# each time make runs.
-StreamVersion$(OBJ): ../*.c ../*.h ../*.cc ../CONFIG_STREAM ../Makefile
+-include $(TOP)/configure/RULES
+
+# Update version string whenever something changes
+StreamVersion$(OBJ): $(filter-out StreamVersion.o,$(LIBOBJS)$(LIBRARY_OBJS))
 
 # Add references to all registrars to main file to avoid
 # missing initialization.
@@ -89,11 +84,9 @@ streamReferences: ../CONFIG_STREAM
 	$(PERL) ../makeref.pl Interface $(BUSSES) > $@
 	$(PERL) ../makeref.pl Converter $(FORMATS) >> $@
 
-# create stream.dbd from all RECORDS
+# create stream.dbd from all RECORDTYPES
 $(COMMON_DIR)/$(LIBRARY_DEFAULT).dbd: ../CONFIG_STREAM
-	$(PERL) ../makedbd.pl $(RECORDS) > $@
+	$(PERL) ../makedbd.pl $(if $(ASYN),--with-asyn) $(if $(BASE_3_14),,-3.13) $(RECORDTYPES) > $@
 
 $(LIBRARY_DEFAULT).dbd$(DEP): ../CONFIG_STREAM
 	echo $(LIBRARY_DEFAULT).dbd: $< > $@
-
-endif

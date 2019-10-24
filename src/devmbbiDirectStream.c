@@ -6,7 +6,7 @@
 * (C) 2005 Dirk Zimoch (dirk.zimoch@psi.ch)                    *
 *                                                              *
 * This is an EPICS record Interface for StreamDevice.          *
-* Please refer to the HTML files in ../doc/ for a detailed     *
+* Please refer to the HTML files in ../docs/ for a detailed    *
 * documentation.                                               *
 *                                                              *
 * If you do any changes in this file, you are not allowed to   *
@@ -19,18 +19,17 @@
 *                                                              *
 ***************************************************************/
 
-#include <mbbiDirectRecord.h>
+#include "mbbiDirectRecord.h"
 #include "devStream.h"
-#include <epicsExport.h>
 
-static long readData (dbCommon *record, format_t *format)
+static long readData(dbCommon *record, format_t *format)
 {
-    mbbiDirectRecord *mbbiD = (mbbiDirectRecord *) record;
+    mbbiDirectRecord *mbbiD = (mbbiDirectRecord *)record;
     unsigned long val;
 
     if (format->type == DBF_ULONG || format->type == DBF_LONG)
     {
-        if (streamScanf (record, format, &val)) return ERROR;
+        if (streamScanf(record, format, &val) == ERROR) return ERROR;
         if (mbbiD->mask)
         {
             val &= mbbiD->mask;
@@ -40,33 +39,33 @@ static long readData (dbCommon *record, format_t *format)
         else
         {
             /* No MASK, (NOBT = 0): use VAL field */
-            mbbiD->val = (unsigned short)val;
+            mbbiD->val = val; /* no cast because we cannot be sure about type of VAL */
             return DO_NOT_CONVERT;
         }
     }
     return ERROR;
 }
 
-static long writeData (dbCommon *record, format_t *format)
+static long writeData(dbCommon *record, format_t *format)
 {
-    mbbiDirectRecord *mbbiD = (mbbiDirectRecord *) record;
+    mbbiDirectRecord *mbbiD = (mbbiDirectRecord *)record;
     unsigned long val;
 
     if (format->type == DBF_ULONG || format->type == DBF_LONG)
     {
         if (mbbiD->mask) val = mbbiD->rval & mbbiD->mask;
         else val = mbbiD->val;
-        return streamPrintf (record, format, val);
+        return streamPrintf(record, format, val);
     }
     return ERROR;
 }
 
-static long initRecord (dbCommon *record)
+static long initRecord(dbCommon *record)
 {
-    mbbiDirectRecord *mbbiD = (mbbiDirectRecord *) record;
+    mbbiDirectRecord *mbbiD = (mbbiDirectRecord *)record;
 
     mbbiD->mask <<= mbbiD->shft;
-    return streamInitRecord (record, &mbbiD->inp, readData, writeData) == ERROR ?
+    return streamInitRecord(record, &mbbiD->inp, readData, writeData) == ERROR ?
         ERROR : OK;
 }
 

@@ -5,7 +5,7 @@
 * (C) 2005 Dirk Zimoch (dirk.zimoch@psi.ch)                    *
 *                                                              *
 * This is the header for the EPICS interface to StreamDevice.  *
-* Please refer to the HTML files in ../doc/ for a detailed     *
+* Please refer to the HTML files in ../docs/ for a detailed    *
 * documentation.                                               *
 *                                                              *
 * If you do any changes in this file, you are not allowed to   *
@@ -21,13 +21,17 @@
 #ifndef devStream_h
 #define devStream_h
 
-#define STREAM_MAJOR 2
-#define STREAM_MINOR 7
-#define STREAM_PATCHLEVEL 7
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <sys/types.h>
 
-#if defined(__vxworks) || defined(vxWorks)
-#include <vxWorks.h>
+#if defined(__cplusplus)
+extern "C" {
 #endif
+
+#define STREAM_MAJOR 2
+#define STREAM_MINOR 8
 
 #ifndef OK
 #define OK 0
@@ -40,13 +44,9 @@
 #define DO_NOT_CONVERT 2
 #define INIT_RUN (!interruptAccept)
 
-#include <epicsVersion.h>
+#include "epicsVersion.h"
 #ifdef BASE_VERSION
 #define EPICS_3_13
-#endif
-
-#if defined(__cplusplus) && defined(EPICS_3_13)
-extern "C" {
 #endif
 
 #ifdef epicsExportSharedSymbols
@@ -54,68 +54,58 @@ extern "C" {
 #   undef epicsExportSharedSymbols
 #endif
 
-#include <stdio.h>
-#include <dbCommon.h>
-#include <dbScan.h>
-#include <devSup.h>
-/* #include <dbFldTypes.h> */
-#include <dbAccess.h>
+#include "dbCommon.h"
+#include "dbScan.h"
+#include "devSup.h"
+#include "dbAccess.h"
+#include "errlog.h"
+#include "alarm.h"
+#include "recGbl.h"
+#include "dbEvent.h"
+#include "epicsMath.h"
 
 #ifdef devStream_epicsExportSharedSymbols
 #   define epicsExportSharedSymbols
-#   include "shareLib.h"
 #endif
 
-#if defined(__cplusplus) && defined(EPICS_3_13)
-}
+#if defined(_WIN32)
+typedef ptrdiff_t ssize_t;
 #endif
-
 
 typedef const struct format_s {
     unsigned char type;
     const struct StreamFormat* priv;
 } format_t;
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 epicsShareExtern FILE* StreamDebugFile;
-
 extern const char StreamVersion [];
 
 typedef long (*streamIoFunction) (dbCommon*, format_t*);
 
-epicsShareFunc long streamInit(int after);
-epicsShareFunc long streamInitRecord(dbCommon *record,
+long streamInit(int after);
+long streamInitRecord(dbCommon *record,
     const struct link *ioLink,
     streamIoFunction readData, streamIoFunction writeData);
-epicsShareFunc long streamReport(int interest);
-epicsShareFunc long streamReadWrite(dbCommon *record);
-epicsShareFunc long streamGetIointInfo(int cmd,
+long streamReport(int interest);
+long streamReadWrite(dbCommon *record);
+long streamGetIointInfo(int cmd,
     dbCommon *record, IOSCANPVT *ppvt);
-epicsShareFunc long streamPrintf(dbCommon *record, format_t *format, ...);
-epicsShareFunc long streamScanfN(dbCommon *record, format_t *format,
+long streamPrintf(dbCommon *record, format_t *format, ...);
+ssize_t streamScanfN(dbCommon *record, format_t *format,
     void*, size_t maxStringSize);
 
 /* backward compatibility stuff */
-#define devStreamIoFunction streamIoFunction
-#define devStreamInit streamInit
-#define devStreamInitRecord streamInitRecord
-#define devStreamReport streamReport
-#define devStreamRead streamReadWrite
-#define devStreamWrite streamReadWrite
-#define devStreamGetIointInfo streamGetIointInfo
-#define devStreamPrintf streamPrintf
-#define devStreamPrintSep(record) (0)
-#define devStreamScanSep (0)
-#define devStreamScanf(record, format, value) \
-    streamScanfN(record, format, value, MAX_STRING_SIZE)
 #define streamScanf(record, format, value) \
     streamScanfN(record, format, value, MAX_STRING_SIZE)
 #define streamRead streamReadWrite
 #define streamWrite streamReadWrite
 #define streamReport NULL
+
+#ifdef EPICS_3_13
+#define epicsExportAddress(a,b) extern int dummy
+#else
+#include "epicsExport.h"
+#endif
 
 #ifdef __cplusplus
 }

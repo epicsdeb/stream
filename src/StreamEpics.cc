@@ -5,7 +5,7 @@
 * (C) 2005 Dirk Zimoch (dirk.zimoch@psi.ch)                    *
 *                                                              *
 * This is the interface to EPICS for StreamDevice.             *
-* Please refer to the HTML files in ../doc/ for a detailed     *
+* Please refer to the HTML files in ../docs/ for a detailed    *
 * documentation.                                               *
 *                                                              *
 * If you do any changes in this file, you are not allowed to   *
@@ -18,13 +18,11 @@
 *                                                              *
 ***************************************************************/
 
-#define epicsExportSharedSymbols
-#include "devStream.h"
-#undef epicsExportSharedSymbols
+#include <errno.h>
 #include "StreamCore.h"
 #include "StreamError.h"
 
-#include <epicsVersion.h>
+#include "epicsVersion.h"
 #ifdef BASE_VERSION
 #define EPICS_3_13
 #endif
@@ -34,18 +32,18 @@ extern "C" {
 #endif
 
 #define epicsAlarmGLOBAL
-#include <alarm.h>
+#include "alarm.h"
 #undef epicsAlarmGLOBAL
+#include "dbStaticLib.h"
+#include "drvSup.h"
+#include "recSup.h"
+#include "recGbl.h"
+#include "devLib.h"
+#include "callback.h"
+
 #include <ctype.h>
 #include <stdarg.h>
 #include <stdlib.h>
-#include <dbStaticLib.h>
-#include <drvSup.h>
-#include <recSup.h>
-#include <recGbl.h>
-#include <devLib.h>
-#include <callback.h>
-
 #ifdef EPICS_3_13
 
 #include <semLib.h>
@@ -56,44 +54,49 @@ extern DBBASE *pdbbase;
 
 } // extern "C"
 
-#else
+#else // !EPICS_3_13
 
-#include <epicsTimer.h>
-#include <epicsMutex.h>
-#include <epicsEvent.h>
-#include <epicsTime.h>
-#include <epicsThread.h>
-#include <registryFunction.h>
-#include <iocsh.h>
+#include "epicsTimer.h"
+#include "epicsMutex.h"
+#include "epicsEvent.h"
+#include "epicsTime.h"
+#include "epicsThread.h"
+#include "epicsString.h"
+#include "registryFunction.h"
+#include "epicsStdioRedirect.h"
+#include "iocsh.h"
 
-#if EPICS_MODIFICATION<9
-extern "C" {
+#if defined(VERSION_INT) || EPICS_MODIFICATION >= 11
+#include "initHooks.h"
+#define WITH_IOC_RUN
+#endif
+
+#if !defined(VERSION_INT) && EPICS_MODIFICATION < 9
 // iocshCmd() is missing in iocsh.h (up to R3.14.8.2)
 // To build with win32-x86, you MUST fix iocsh.h.
 // Move the declaration below to iocsh.h and rebuild base.
-epicsShareFunc int epicsShareAPI iocshCmd(const char *command);
-}
+extern "C" epicsShareFunc int epicsShareAPI iocshCmd(const char *command);
 #endif
 
-#include <epicsExport.h>
-
-#endif
+#endif // !EPICS_3_13
 
 #if defined(__vxworks) || defined(vxWorks)
 #include <symLib.h>
 #include <sysSymTbl.h>
 #endif
 
-enum MoreFlags {
-    // 0x00FFFFFF used by StreamCore
-    InDestructor  = 0x0100000,
-    ValueReceived = 0x0200000,
-    Aborted       = 0x0400000
-};
+#include "devStream.h"
 
-extern "C" void streamExecuteCommand(CALLBACK *pcallback);
-extern "C" void streamRecordProcessCallback(CALLBACK *pcallback);
-extern "C" long streamReload(char* recordname);
+#define Z PRINTF_SIZE_T_PREFIX
+
+// More flags: 0x00FFFFFF used by StreamCore
+const unsigned long InDestructor  = 0x0100000;
+const unsigned long ValueReceived = 0x0200000;
+
+extern "C" {
+long streamReload(const char* recordname);
+long streamReportRecord(const char* recordname);
+}
 
 class Stream : protected StreamCore
 #ifndef EPICS_3_13
@@ -117,7 +120,7 @@ class Stream : protected StreamCore
 #endif
     int status;
     int convert;
-    long currentValueLength;
+    ssize_t currentValueLength;
     IOSCANPVT ioscanpvt;
     CALLBACK commandCallback;
     CALLBACK processCallback;
@@ -131,7 +134,6 @@ class Stream : protected StreamCore
 #endif
 
 // StreamCore methods
-    void protocolStartHook();
     void protocolFinishHook(ProtocolResult);
     void startTimer(unsigned long timeout);
     bool getFieldAddress(const char* fieldname,
@@ -143,8 +145,17 @@ class Stream : protected StreamCore
     void lockMutex();
     void releaseMutex();
     bool execute();
-    friend void streamExecuteCommand(CALLBACK *pcallback);
-    friend void streamRecordProcessCallback(CALLBACK *pcallback);
+
+// need static wrappers for callbacks
+    void executeCommand();
+    static void executeCommand(CALLBACK *pcallback) {
+        static_cast<Stream*>(pcallback->user)->executeCommand();
+    }
+
+    void recordProcessCallback();
+    static void recordProcessCallback(CALLBACK *pcallback) {
+        static_cast<Stream*>(pcallback->user)->recordProcessCallback();
+    }
 
 // Stream Epics methods
     Stream(dbCommon* record, const struct link *ioLink,
@@ -155,8 +166,12 @@ class Stream : protected StreamCore
     long initRecord(const char* filename, const char* protocol,
         const char* busname, int addr, const char* busparam);
     bool print(format_t *format, va_list ap);
-    bool scan(format_t *format, void* pvalue, size_t maxStringSize);
+    ssize_t scan(format_t *format, void* pvalue, size_t maxStringSize);
     bool process();
+
+#ifdef WITH_IOC_RUN
+    static void initHook(initHookState);
+#endif
 
 // device support functions
     friend long streamInitRecord(dbCommon *record, const struct link *ioLink,
@@ -165,9 +180,10 @@ class Stream : protected StreamCore
     friend long streamGetIointInfo(int cmd, dbCommon *record,
         IOSCANPVT *ppvt);
     friend long streamPrintf(dbCommon *record, format_t *format, ...);
-    friend long streamScanfN(dbCommon *record, format_t *format,
+    friend ssize_t streamScanfN(dbCommon *record, format_t *format,
         void*, size_t maxStringSize);
-    friend long streamReload(char* recordname);
+    friend long streamReload(const char* recordname);
+    friend long streamReportRecord(const char* recordname);
 
 public:
     long priority() { return record->prio; };
@@ -177,62 +193,68 @@ public:
 
 
 // shell functions ///////////////////////////////////////////////////////
-#ifndef EPICS_3_13
-extern "C" {
+extern "C" { // needed for Windows
 epicsExportAddress(int, streamDebug);
+epicsExportAddress(int, streamError);
 }
-#endif
 
 // for subroutine record
-extern "C" long streamReloadSub()
+long streamReloadSub()
 {
     return streamReload(NULL);
 }
 
-extern "C" long streamReload(char* recordname)
+long streamReload(const char* recordname)
 {
-    DBENTRY	dbentry;
-    dbCommon*   record;
+    Stream* stream;
     long status;
+    int oldStreamError = streamError;
+    streamError = 1;
 
     if(!pdbbase) {
         error("No database has been loaded\n");
+        streamError = oldStreamError;
         return ERROR;
     }
     debug("streamReload(%s)\n", recordname);
-    dbInitEntry(pdbbase,&dbentry);
-    for (status = dbFirstRecordType(&dbentry); status == OK;
-        status = dbNextRecordType(&dbentry))
+    for (stream = static_cast<Stream*>(Stream::first); stream;
+        stream = static_cast<Stream*>(stream->next))
     {
-        for (status = dbFirstRecord(&dbentry); status == OK;
-            status = dbNextRecord(&dbentry))
-        {
-            char* value;
-            if (dbFindField(&dbentry, "DTYP") != OK)
-                continue;
-            if ((value = dbGetString(&dbentry)) == NULL)
-                continue;
-            if (strcmp(value, "stream") != 0)
-                continue;
-            record=(dbCommon*)dbentry.precnode->precord;
-            if (recordname && strcmp(recordname, record->name) != 0)
-                continue;
+        if (recordname && recordname[0] &&
+#ifdef EPICS_3_13
+            strcmp(stream->name(), recordname) == 0)
+#else        
+            !epicsStrGlobMatch(stream->name(), recordname))
+#endif
+            continue;
+        // This cancels any running protocol and reloads
+        // the protocol file
+        status = stream->record->dset->init_record(stream->record);
+        if (status == OK || status == DO_NOT_CONVERT)
+            printf("%s: Protocol reloaded\n", stream->name());
+        else
+            error("%s: Protocol reload failed\n", stream->name());
+    }
+    StreamProtocolParser::free();
+    streamError = oldStreamError;
+    return OK;
+}
 
-            // This cancels any running protocol and reloads
-            // the protocol file
-            status = record->dset->init_record(record);
-            if (status == OK || status == DO_NOT_CONVERT)
-            {
-                printf("%s: Protocol reloaded\n", record->name);
-            }
-            else
-            {
-                error("%s: Protocol reload failed\n", record->name);
-            }
+long streamSetLogfile(const char* filename)
+{
+    FILE *oldfile, *newfile = NULL;
+    if (filename)
+    {
+        newfile = fopen(filename, "w");
+        if (!newfile)
+        {
+            fprintf(stderr, "Opening file %s failed: %s\n", filename, strerror(errno));
+            return ERROR;
         }
     }
-    dbFinishEntry(&dbentry);
-    StreamProtocolParser::free();
+    oldfile = StreamDebugFile;
+    StreamDebugFile = newfile;
+    if (oldfile) fclose(oldfile);
     return OK;
 }
 
@@ -241,17 +263,43 @@ static const iocshArg streamReloadArg0 =
     { "recordname", iocshArgString };
 static const iocshArg * const streamReloadArgs[] =
     { &streamReloadArg0 };
-static const iocshFuncDef reloadDef =
+static const iocshFuncDef streamReloadDef =
     { "streamReload", 1, streamReloadArgs };
 
-extern "C" void streamReloadFunc (const iocshArgBuf *args)
+void streamReloadFunc (const iocshArgBuf *args)
 {
     streamReload(args[0].sval);
 }
 
+static const iocshArg streamReportRecordArg0 =
+    { "recordname", iocshArgString };
+static const iocshArg * const streamReportRecordArgs[] =
+    { &streamReportRecordArg0 };
+static const iocshFuncDef streamReportRecordDef =
+    { "streamReportRecord", 1, streamReportRecordArgs };
+
+void streamReportRecordFunc (const iocshArgBuf *args)
+{
+    streamReportRecord(args[0].sval);
+}
+
+static const iocshArg streamSetLogfileArg0 =
+    { "filename", iocshArgString };
+static const iocshArg * const streamSetLogfileArgs[] =
+    { &streamSetLogfileArg0 };
+static const iocshFuncDef streamSetLogfileDef =
+    { "streamSetLogfile", 1, streamSetLogfileArgs };
+
+void streamSetLogfileFunc (const iocshArgBuf *args)
+{
+    streamSetLogfile(args[0].sval);
+}
+
 static void streamRegistrar ()
 {
-    iocshRegister(&reloadDef, streamReloadFunc);
+    iocshRegister(&streamReloadDef, streamReloadFunc);
+    iocshRegister(&streamReportRecordDef, streamReportRecordFunc);
+    iocshRegister(&streamSetLogfileDef, streamSetLogfileFunc);
     // make streamReload available for subroutine records
     registryFunctionAdd("streamReload",
         (REGISTRYFUNCTION)streamReloadSub);
@@ -262,30 +310,25 @@ static void streamRegistrar ()
 extern "C" {
 epicsExportRegistrar(streamRegistrar);
 }
-#endif
+
+
+#endif // !EPICS_3_13
 
 // driver support ////////////////////////////////////////////////////////
 
-struct stream_drvsup {
-    long number;
-    long (*report)(int);
-    long (*init)();
-} stream = {
+struct drvet stream = {
     2,
-    Stream::report,
-    Stream::drvInit
+    (DRVSUPFUN) Stream::report,
+    (DRVSUPFUN) Stream::drvInit
 };
-
-#ifndef EPICS_3_13
 extern "C" {
 epicsExportAddress(drvet, stream);
 }
-#endif
 
 #ifdef EPICS_3_13
-void streamEpicsPrintTimestamp(char* buffer, int size)
+void streamEpicsPrintTimestamp(char* buffer, size_t size)
 {
-    int tlen;
+    size_t tlen;
     char* c;
     TS_STAMP tm;
     tsLocalTime (&tm);
@@ -295,17 +338,17 @@ void streamEpicsPrintTimestamp(char* buffer, int size)
         c[4] = 0;
     }
     tlen = strlen(buffer);
-    sprintf(buffer+tlen, " %.*s", size-tlen-2, taskName(0));
+    sprintf(buffer+tlen, " %.*s", (int)(size-tlen-2), taskName(0));
 }
-#else
-void streamEpicsPrintTimestamp(char* buffer, int size)
+#else // !EPICS_3_13
+void streamEpicsPrintTimestamp(char* buffer, size_t size)
 {
-    int tlen;
+    size_t tlen;
     epicsTime tm = epicsTime::getCurrent();
     tlen = tm.strftime(buffer, size, "%Y/%m/%d %H:%M:%S.%06f");
-    sprintf(buffer+tlen, " %.*s", size-tlen-2, epicsThreadGetNameSelf());
+    sprintf(buffer+tlen, " %.*s", (int)(size-tlen-2), epicsThreadGetNameSelf());
 }
-#endif
+#endif // !EPICS_3_13
 
 long Stream::
 report(int interest)
@@ -334,27 +377,52 @@ report(int interest)
         }
     }
 
-    Stream* pstream;
+    Stream* stream;
     printf("  connected records:\n");
-    for (pstream = static_cast<Stream*>(first); pstream;
-        pstream = static_cast<Stream*>(pstream->next))
+    for (stream = static_cast<Stream*>(first); stream;
+        stream = static_cast<Stream*>(stream->next))
     {
         if (interest == 2)
         {
-            printf("\n%s: %s\n", pstream->name(),
-                pstream->ioLink->value.instio.string);
-            pstream->printProtocol();
+            printf("\n%s: %s\n", stream->name(),
+                stream->ioLink->value.instio.string);
+            stream->printProtocol(stdout);
         }
         else
         {
-            printf("    %s: %s\n", pstream->name(),
-                pstream->ioLink->value.instio.string);
+            printf("    %s: %s\n", stream->name(),
+                stream->ioLink->value.instio.string);
             if (interest == 3)
             {
                 StreamBuffer buffer;
-                pstream->printStatus(buffer);
+                stream->printStatus(buffer);
                 printf("      %s\n", buffer());
             }
+        }
+    }
+    return OK;
+}
+
+long streamReportRecord(const char* recordname)
+{
+    Stream* stream;
+    for (stream = static_cast<Stream*>(Stream::first); stream;
+        stream = static_cast<Stream*>(stream->next))
+    {
+        if (!recordname ||
+#ifdef EPICS_3_13
+            strcmp(stream->name(), recordname) == 0)
+#else
+            epicsStrGlobMatch(stream->name(), recordname))
+#endif
+        {
+            printf("%s: %s\n", stream->name(),
+                stream->ioLink->value.instio.string);
+            StreamBuffer buffer;
+            stream->printStatus(buffer);
+            printf("%s\n", buffer());
+            stream->printProtocol(stdout);
+            printf("\n");
         }
     }
     return OK;
@@ -374,40 +442,90 @@ drvInit()
         SYM_TYPE type;
         if (symFindByName(sysSymTbl,
             "STREAM_PROTOCOL_PATH", &symbol, &type) == OK)
-        {
             path = *(char**)symbol;
-        }
         else
         if (symFindByName(sysSymTbl,
             "STREAM_PROTOCOL_DIR", &symbol, &type) == OK)
-        {
             path = *(char**)symbol;
-        }
     }
 #endif
     if (!path)
-    {
         fprintf(stderr,
             "drvStreamInit: Warning! STREAM_PROTOCOL_PATH not set. "
             "Defaults to \"%s\"\n", StreamProtocolParser::path);
-    }
     else
-    {
         StreamProtocolParser::path = path;
-    }
     debug("StreamProtocolParser::path = %s\n",
         StreamProtocolParser::path);
     StreamPrintTimestampFunction = streamEpicsPrintTimestamp;
+
+#ifdef WITH_IOC_RUN
+    initHookRegister(initHook);
+#endif
+
     return OK;
 }
+
+#ifdef WITH_IOC_RUN
+void Stream::
+initHook(initHookState state)
+{
+    Stream* stream;
+
+    if (state == initHookAtIocRun)
+    {
+        debug("Stream::initHook(initHookAtIocRun) interruptAccept=%d\n", interruptAccept);
+
+        static int inIocInit = 1;
+        if (inIocInit)
+        {
+            // We don't want to run @init twice in iocInit
+            inIocInit = 0;
+            return;
+        }
+
+        for (stream = static_cast<Stream*>(first); stream;
+            stream = static_cast<Stream*>(stream->next))
+        {
+            if (!stream->onInit) continue;
+            debug("Stream::initHook(initHookAtIocRun) Re-inititializing %s\n", stream->name());
+            if (!stream->startProtocol(StartInit))
+            {
+                error("%s: Re-initialization failed.\n",
+                    stream->name());
+            }
+            stream->initDone.wait();
+        }
+    }
+}
+#endif
 
 // device support (C interface) //////////////////////////////////////////
 
 long streamInit(int after)
 {
+    static int oldStreamError;
     if (after)
     {
-        StreamProtocolParser::free();
+        static int first = 1;
+        if (first)
+        {
+            // restore error filtering to previous setting
+            streamError = oldStreamError;
+            StreamProtocolParser::free();
+            first = 0;
+        }
+    }
+    else
+    {
+        static int first = 1;
+        if (first)
+        {
+            // enable errors while reading protocol files
+            oldStreamError = streamError;
+            streamError = 1;
+            first = 0;
+        }
     }
     return OK;
 }
@@ -416,46 +534,48 @@ long streamInitRecord(dbCommon* record, const struct link *ioLink,
     streamIoFunction readData, streamIoFunction writeData)
 {
     long status;
-    char filename[80];
-    char protocol[80];
-    char busname[80];
+    char filename[256];
+    char protocol[256];
+    char busname[256];
     int addr = -1;
-    char busparam[80];
+    char busparam[256];
     memset(busparam, 0 ,sizeof(busparam));
 
     debug("streamInitRecord(%s): SEVR=%d\n", record->name, record->sevr);
-    Stream* pstream = (Stream*)record->dpvt;
-    if (!pstream)
+    Stream* stream = static_cast<Stream*>(record->dpvt);
+    if (!stream)
     {
         // initialize the first time
         debug("streamInitRecord(%s): create new Stream object\n",
             record->name);
-        pstream = new Stream(record, ioLink, readData, writeData);
-        record->dpvt = pstream;
+        stream = new Stream(record, ioLink, readData, writeData);
+        record->dpvt = stream;
     } else {
         // stop any running protocol
         debug("streamInitRecord(%s): stop running protocol\n",
             record->name);
-        pstream->finishProtocol(Stream::Abort);
+        stream->finishProtocol(Stream::Abort);
     }
     // scan the i/o link
     debug("streamInitRecord(%s): parse link \"%s\"\n",
         record->name, ioLink->value.instio.string);
-    status = pstream->parseLink(ioLink, filename, protocol,
+    status = stream->parseLink(ioLink, filename, protocol,
         busname, &addr, busparam);
     // (re)initialize bus and protocol
-    debug("streamInitRecord(%s): calling initRecord\n",
-        record->name);
     if (status == 0)
-        status = pstream->initRecord(filename, protocol,
+    {
+        debug("streamInitRecord(%s): calling initRecord\n",
+            record->name);
+        status = stream->initRecord(filename, protocol,
             busname, addr, busparam);
+    }
     if (status != OK && status != DO_NOT_CONVERT)
     {
         error("%s: Record initialization failed\n", record->name);
     }
-    else if (!pstream->ioscanpvt)
+    else if (!stream->ioscanpvt)
     {
-        scanIoInit(&pstream->ioscanpvt);
+        scanIoInit(&stream->ioscanpvt);
     }
     debug("streamInitRecord(%s) done status=%#lx\n", record->name, status);
     return status;
@@ -463,33 +583,33 @@ long streamInitRecord(dbCommon* record, const struct link *ioLink,
 
 long streamReadWrite(dbCommon *record)
 {
-    Stream* pstream = (Stream*)record->dpvt;
-    if (!pstream || pstream->status == ERROR)
+    Stream* stream = static_cast<Stream*>(record->dpvt);
+    if (!stream || stream->status == ERROR)
     {
         (void) recGblSetSevr(record, UDF_ALARM, INVALID_ALARM);
         error("%s: Record not initialised correctly\n", record->name);
         return ERROR;
     }
-    return pstream->process() ? pstream->convert : ERROR;
+    return stream->process() ? stream->convert : ERROR;
 }
 
 long streamGetIointInfo(int cmd, dbCommon *record, IOSCANPVT *ppvt)
 {
-    Stream* pstream = (Stream*)record->dpvt;
-    debug("streamGetIointInfo(%s,cmd=%d): pstream=%p, ioscanpvt=%p\n",
+    Stream* stream = static_cast<Stream*>(record->dpvt);
+    debug("streamGetIointInfo(%s,cmd=%d): stream=%p, ioscanpvt=%p\n",
         record->name, cmd,
-        (void*)pstream, pstream ? pstream->ioscanpvt : NULL);
-    if (!pstream)
+        (void*)stream, stream ? stream->ioscanpvt : NULL);
+    if (!stream)
     {
         error("streamGetIointInfo called without stream instance\n");
         return ERROR;
     }
-    *ppvt = pstream->ioscanpvt;
+    *ppvt = stream->ioscanpvt;
     if (cmd == 0)
     {
         debug("streamGetIointInfo: starting protocol\n");
         // SCAN has been set to "I/O Intr"
-        if (!pstream->startProtocol(Stream::StartAsync))
+        if (!stream->startProtocol(Stream::StartAsync))
         {
             error("%s: Can't start \"I/O Intr\" protocol\n",
                 record->name);
@@ -498,7 +618,7 @@ long streamGetIointInfo(int cmd, dbCommon *record, IOSCANPVT *ppvt)
     else
     {
         // SCAN is no longer "I/O Intr"
-        pstream->finishProtocol(Stream::Abort);
+        stream->finishProtocol(Stream::Abort);
     }
     return OK;
 }
@@ -507,31 +627,23 @@ long streamPrintf(dbCommon *record, format_t *format, ...)
 {
     debug("streamPrintf(%s,format=%%%c)\n",
         record->name, format->priv->conv);
-    Stream* pstream = (Stream*)record->dpvt;
-    if (!pstream) return ERROR;
+    Stream* stream = static_cast<Stream*>(record->dpvt);
+    if (!stream) return ERROR;
     va_list ap;
     va_start(ap, format);
-    bool success = pstream->print(format, ap);
+    bool success = stream->print(format, ap);
     va_end(ap);
     return success ? OK : ERROR;
 }
 
-long streamScanfN(dbCommon* record, format_t *format,
+ssize_t streamScanfN(dbCommon* record, format_t *format,
     void* value, size_t maxStringSize)
 {
-    debug("streamScanfN(%s,format=%%%c,maxStringSize=%ld)\n",
-        record->name, format->priv->conv, (long)maxStringSize);
-    Stream* pstream = (Stream*)record->dpvt;
-    if (!pstream) return ERROR;
-    if (!pstream->scan(format, value, maxStringSize))
-    {
-        return ERROR;
-    }
-#ifndef NO_TEMPORARY
-    debug("streamScanfN(%s) success, value=\"%s\"\n",
-        record->name, StreamBuffer((char*)value).expand()());
-#endif
-    return OK;
+    ssize_t size;
+    Stream* stream = static_cast<Stream*>(record->dpvt);
+    if (!stream) return ERROR;
+    size = stream->scan(format, value, maxStringSize);
+    return size;
 }
 
 // Stream methods ////////////////////////////////////////////////////////
@@ -552,9 +664,9 @@ Stream(dbCommon* _record, const struct link *ioLink,
     timerQueue = &epicsTimerQueueActive::allocate(true);
     timer = &timerQueue->createTimer();
 #endif
-    callbackSetCallback(streamExecuteCommand, &commandCallback);
+    callbackSetCallback(executeCommand, &commandCallback);
     callbackSetUser(this, &commandCallback);
-    callbackSetCallback(streamRecordProcessCallback, &processCallback);
+    callbackSetCallback(recordProcessCallback, &processCallback);
     callbackSetUser(this, &processCallback);
     status = ERROR;
     convert = DO_NOT_CONVERT;
@@ -591,32 +703,52 @@ parseLink(const struct link *ioLink, char* filename,
     char* protocol, char* busname, int* addr, char* busparam)
 {
     // parse link parameters: filename protocol busname addr busparam
-    int n;
+    int n1, n2;
     if (ioLink->type != INST_IO)
     {
         error("%s: Wrong I/O link type %s\n", name(),
             pamaplinkType[ioLink->type].strvalue);
         return S_dev_badInitRet;
     }
-    int items = sscanf(ioLink->value.instio.string, "%s%s%s%n%i%n",
-        filename, protocol, busname, &n, addr, &n);
-    if (items <= 0)
+    if (0 >= sscanf(ioLink->value.instio.string, "%s%n", filename, &n1))
     {
         error("%s: Empty I/O link. "
             "Forgot the leading '@' or confused INP with OUT or link is too long ?\n",
             name());
         return S_dev_badInitRet;
     }
-    if (items < 3)
+    if (0 >= sscanf(ioLink->value.instio.string+n1, " %[^ \t(] %n", protocol, &n2))
     {
-        error("%s: Wrong I/O link format\n"
-            "  expect \"@file protocol bus addr params\"\n"
+        error("%s: Missing protocol name\n"
+            "  expect \"@file protocol[(arg1,...)] bus [addr] [params]\"\n"
             "  in \"@%s\"\n", name(),
             ioLink->value.instio.string);
         return S_dev_badInitRet;
     }
-    while (isspace((unsigned char)ioLink->value.instio.string[n])) n++;
-    strcpy (busparam, ioLink->value.constantStr+n);
+    n1+=n2;
+    if (ioLink->value.instio.string[n1] == '(')
+    {
+        n2 = 0;
+        sscanf(ioLink->value.instio.string+n1, " %[^)] %n", protocol+strlen(protocol), &n2);
+        n1+=n2;
+        if (ioLink->value.instio.string[n1++] != ')')
+        {
+            error("%s: Missing ')' after protocol arguments '%s'\n"
+                "  expect \"@file protocol(arg1,...) bus [addr] [params]\"\n"
+                "  in \"@%s\"\n", name(), protocol,
+                ioLink->value.instio.string);
+            return S_dev_badInitRet;
+        }
+        strcat(protocol, ")");
+    }
+    if (0 >= sscanf(ioLink->value.instio.string+n1, "%s %i %99c", busname, addr, busparam))
+    {
+        error("%s: Missing bus name\n"
+            "  expect \"@file protocol[(arg1,...)] bus [addr] [params]\"\n"
+            "  in \"@%s\"\n", name(),
+            ioLink->value.instio.string);
+        return S_dev_badInitRet;
+    }    
     return OK;
 }
 
@@ -652,7 +784,7 @@ initRecord(const char* filename, const char* protocol,
     if (ioscanpvt)
     {
         // we have been called by streamReload
-        debug("Stream::initRecord %s: initialize after streamReload\n",
+        debug("Stream::initRecord %s: re-initialize after streamReload\n",
             name());
         if (record->scan == SCAN_IO_EVENT)
         {
@@ -665,18 +797,19 @@ initRecord(const char* filename, const char* protocol,
                     name());
             }
         }
-        return OK;
     }
-
-    debug("Stream::initRecord %s: initialize the first time\n",
-        name());
+    else
+    {
+        debug("Stream::initRecord %s: initialize the first time\n",
+            name());
+    }
 
     if (!onInit) return DO_NOT_CONVERT; // no @init handler, keep DOL
 
     // initialize the record from hardware
     if (!startProtocol(StartInit))
     {
-        error("%s: Can't start init run\n",
+        error("%s: Can't start @init handler\n",
             name());
         return ERROR;
     }
@@ -687,8 +820,7 @@ initRecord(const char* filename, const char* protocol,
 #else
     initDone.wait();
 #endif
-    debug("Stream::initRecord %s: initDone\n",
-        name());
+    debug("Stream::initRecord %s: initDone\n", name());
 
     // init run has set status and convert
     if (status != NO_ALARM)
@@ -698,8 +830,9 @@ initRecord(const char* filename, const char* protocol,
             name());
         return ERROR;
     }
-    debug("Stream::initRecord %s: initialized. convert=%d\n",
-        name(), convert);
+    debug("Stream::initRecord %s: initialized. %s\n",
+        name(), convert == DO_NOT_CONVERT ?
+            "convert" : "don't convert");
     return convert;
 }
 
@@ -707,20 +840,22 @@ bool Stream::
 process()
 {
     MutexLock lock(this);
+    debug("Stream::process(%s)\n", name());
     if (record->pact || record->scan == SCAN_IO_EVENT)
     {
+        record->proc = 0;
         if (status != NO_ALARM)
         {
             debug("Stream::process(%s) error status=%s (%d)\n",
                 name(),
-                status >= 0 && status < ALARM_NSTATUS ? 
+                status >= 0 && status < ALARM_NSTATUS ?
                     epicsAlarmConditionStrings[status] : "ERROR",
                 status);
             (void) recGblSetSevr(record, status, INVALID_ALARM);
             return false;
         }
         debug("Stream::process(%s) ready. %s\n",
-            name(), convert==2 ?
+            name(), convert == DO_NOT_CONVERT ?
             "convert" : "don't convert");
         return true;
     }
@@ -734,16 +869,19 @@ process()
     debug("Stream::process(%s) start\n", name());
     status = NO_ALARM;
     convert = OK;
-    record->pact = true;
-    if (!startProtocol(StreamCore::StartNormal))
+    if (!startProtocol(record->proc == 2 ? StreamCore::StartInit : StreamCore::StartNormal))
     {
-        debug("Stream::process(%s): could not start, status=%d\n",
-            name(), status);
-        (void) recGblSetSevr(record, status, INVALID_ALARM);
-        record->pact = false;
+        debug("Stream::process(%s): could not start %sprotocol, status=%s (%d)\n",
+            name(), record->proc == 2 ? "@init " : "", 
+                status >= 0 && status < ALARM_NSTATUS ?
+                    epicsAlarmConditionStrings[status] : "ERROR",
+            status);
+        (void) recGblSetSevr(record, status ? status : UDF_ALARM, INVALID_ALARM);
+        record->proc = 0;
         return false;
     }
     debug("Stream::process(%s): protocol started\n", name());
+    record->pact = true;
     return true;
 }
 
@@ -760,17 +898,20 @@ print(format_t *format, va_list ap)
             return printValue(*format->priv, va_arg(ap, double));
         case DBF_STRING:
             return printValue(*format->priv, va_arg(ap, char*));
+        default:
+            error("INTERNAL ERROR (%s): Illegal format type %d\n",
+                name(), format->type);
+            return false;
     }
-    error("INTERNAL ERROR (%s): Illegal format type\n", name());
-    return false;
 }
 
-bool Stream::
+ssize_t Stream::
 scan(format_t *format, void* value, size_t maxStringSize)
 {
     // called by streamScanfN
 
-    // first remove old value from inputLine (if we are scanning arrays)
+    size_t size = maxStringSize;
+    // first remove old value from inputLine (in case we are scanning arrays)
     consumedInput += currentValueLength;
     currentValueLength = 0;
     switch (format->type)
@@ -784,21 +925,23 @@ scan(format_t *format, void* value, size_t maxStringSize)
             currentValueLength = scanValue(*format->priv, *(double*)value);
             break;
         case DBF_STRING:
-            currentValueLength  = scanValue(*format->priv, (char*)value,
-                maxStringSize);
+            currentValueLength = scanValue(*format->priv, (char*)value, size);
             break;
         default:
-            error("INTERNAL ERROR (%s): Illegal format type\n", name());
-            return false;
+            error("INTERNAL ERROR (%s): Illegal format type %d\n",
+                name(), format->type);
+            return ERROR;
     }
-    if (currentValueLength < 0) 
+    debug("Stream::scan() currentValueLength=%" Z "d\n", currentValueLength);
+    if (currentValueLength < 0)
     {
-        currentValueLength = 0;
-        return false;
+        currentValueLength = 0; // important for arrays with less than NELM elements
+        return ERROR;
     }
     // Don't remove scanned value from inputLine yet, because
     // we might need the string in a later error message.
-    return true;
+    if (format->type == DBF_STRING) return size;
+    return OK;
 }
 
 // epicsTimerNotify virtual method ///////////////////////////////////////
@@ -807,8 +950,7 @@ scan(format_t *format, void* value, size_t maxStringSize)
 void Stream::
 expire(CALLBACK *pcallback)
 {
-    Stream* pstream = static_cast<Stream*>(pcallback->user);
-    pstream->timerCallback();
+    static_cast<Stream*>(pcallback->user)->timerCallback();
 }
 #else
 epicsTimerNotify::expireStatus Stream::
@@ -822,14 +964,10 @@ expire(const epicsTime&)
 // StreamCore virtual methods ////////////////////////////////////////////
 
 void Stream::
-protocolStartHook()
-{
-    flags &= ~Aborted;
-}
-
-void Stream::
 protocolFinishHook(ProtocolResult result)
 {
+    debug("Stream::protocolFinishHook(%s, %s)\n",
+        name(), toStr(result));
     switch (result)
     {
         case Success:
@@ -860,8 +998,10 @@ protocolFinishHook(ProtocolResult result)
         case FormatError:
             status = CALC_ALARM;
             break;
+        case Offline:
+            status = COMM_ALARM;
+            break;
         case Abort:
-            flags |= Aborted;
         case Fault:
             status = UDF_ALARM;
             if (record->pact || record->scan == SCAN_IO_EVENT)
@@ -874,8 +1014,9 @@ protocolFinishHook(ProtocolResult result)
             break;
 
     }
-    if (flags & InitRun)
+    if ((flags & (InitRun|Aborted)) == InitRun && record->proc != 2)
     {
+        debug("Stream::protocolFinishHook %s: signalling init done\n", name());
 #ifdef EPICS_3_13
         semGive(initDone);
 #else
@@ -896,34 +1037,25 @@ protocolFinishHook(ProtocolResult result)
         callbackSetPriority(priority(), &processCallback);
         callbackRequest(&processCallback);
     }
-
 }
 
-void streamRecordProcessCallback(CALLBACK *pcallback)
+void Stream::
+recordProcessCallback()
 {
-    Stream* pstream = static_cast<Stream*>(pcallback->user);
-    dbCommon* record = pstream->record;
-
     // process record
     // This will call streamReadWrite.
-    debug("streamRecordProcessCallback(%s) processing record\n",
-            pstream->name());
+    debug("recordProcessCallback(%s) processing record\n", name());
     dbScanLock(record);
     ((DEVSUPFUN)record->rset->process)(record);
     dbScanUnlock(record);
-    debug("streamRecordProcessCallback(%s) processing record done\n",
-            pstream->name());
+    debug("recordProcessCallback(%s) processing record done\n", name());
 
-    if (record->scan == SCAN_IO_EVENT && !(pstream->flags & Aborted))
+    if (record->scan == SCAN_IO_EVENT && !(flags & Aborted))
     {
         // restart protocol for next turn
-        debug("streamRecordProcessCallback(%s) restart async protocol\n",
-            pstream->name());
-        if (!pstream->startProtocol(Stream::StartAsync))
-        {
-            error("%s: Can't restart \"I/O Intr\" protocol\n",
-                pstream->name());
-        }
+        debug("recordProcessCallback(%s) restart async protocol\n", name());
+        if (!startProtocol(Stream::StartAsync))
+            error("%s: Can't restart \"I/O Intr\" protocol\n", name());
     }
 }
 
@@ -956,7 +1088,7 @@ getFieldAddress(const char* fieldname, StreamBuffer& address)
         // FIELD in this record or VAL in other record
         StreamBuffer fullname;
         fullname.print("%s.%s", name(), fieldname);
-        if (dbNameToAddr(fullname(), &dbaddr) != OK)
+        if (dbNameToAddr(fullname(), &dbaddr) != OK || strcmp(((dbFldDes*)dbaddr.pfldDes)->name, fieldname) != 0)
         {
             // VAL in other record
             fullname.clear().print("%s.VAL", fieldname);
@@ -968,10 +1100,11 @@ getFieldAddress(const char* fieldname, StreamBuffer& address)
 }
 
 static const unsigned char dbfMapping[] =
+#ifdef DBF_INT64
+    {0, DBF_UINT64, DBF_INT64, DBF_ENUM, DBF_DOUBLE, DBF_STRING};
+#else
     {0, DBF_ULONG, DBF_LONG, DBF_ENUM, DBF_DOUBLE, DBF_STRING};
-static const short typeSize[] =
-    {0, sizeof(epicsUInt32), sizeof(epicsInt32), sizeof(epicsUInt16),
-        sizeof(epicsFloat64), MAX_STRING_SIZE};
+#endif
 
 bool Stream::
 formatValue(const StreamFormat& format, const void* fieldaddress)
@@ -991,12 +1124,12 @@ formatValue(const StreamFormat& format, const void* fieldaddress)
         // from field of this or other record.
         StreamBuffer fieldBuffer;
         DBADDR* pdbaddr = (DBADDR*)fieldaddress;
-        
+
         /* Handle time stamps special. %T converter takes double. */
         if (strcmp(((dbFldDes*)pdbaddr->pfldDes)->name, "TIME") == 0)
         {
             double time;
-            
+
             if (format.type != double_format)
             {
                 error ("%s: can only read double values from TIME field\n",
@@ -1019,7 +1152,7 @@ formatValue(const StreamFormat& format, const void* fieldaddress)
 
         /* convert type to LONG, ENUM, DOUBLE, or STRING */
         long nelem = pdbaddr->no_elements;
-        size_t size = nelem * typeSize[format.type];
+        size_t size = nelem * dbValueSize(fmt.type);
 
         /* print (U)CHAR arrays as string */
         if (format.type == string_format &&
@@ -1035,7 +1168,7 @@ formatValue(const StreamFormat& format, const void* fieldaddress)
             fmt.type = DBF_CHAR;
             size = nelem;
         }
-        
+
         char* buffer = fieldBuffer.clear().reserve(size);
 
         if (dbGet(pdbaddr, fmt.type, buffer,
@@ -1120,13 +1253,14 @@ bool Stream::
 matchValue(const StreamFormat& format, const void* fieldaddress)
 {
     // this function must increase consumedInput
-    long consumed;
+    ssize_t consumed = 0;
     long lval;
     double dval;
     char* buffer;
     int status;
     const char* putfunc;
     format_s fmt;
+    size_t stringsize = MAX_STRING_SIZE;
 
     fmt.type = dbfMapping[format.type];
     fmt.priv = &format;
@@ -1136,10 +1270,18 @@ matchValue(const StreamFormat& format, const void* fieldaddress)
         // to field of this or other record.
         StreamBuffer fieldBuffer;
         DBADDR* pdbaddr = (DBADDR*)fieldaddress;
-        long nord;
-        long nelem = pdbaddr->no_elements;
-        size_t size = nelem * typeSize[format.type];
-        buffer = fieldBuffer.clear().reserve(size);
+        size_t size;
+        size_t nord;
+        size_t nelem = pdbaddr->no_elements;
+        if (format.type == string_format &&
+            (pdbaddr->field_type == DBF_CHAR || pdbaddr->field_type == DBF_UCHAR))
+        {
+            // string to char array
+            size = nelem;
+        }
+        else
+            size = nelem * dbValueSize(fmt.type);
+        buffer = fieldBuffer.clear().reserve(size);  // maybe write to field directly in case types match?
         for (nord = 0; nord < nelem; nord++)
         {
             debug("Stream::matchValue(%s): buffer before: %s\n",
@@ -1150,7 +1292,7 @@ matchValue(const StreamFormat& format, const void* fieldaddress)
                 {
                     consumed = scanValue(format, lval);
                     if (consumed >= 0) ((epicsUInt32*)buffer)[nord] = lval;
-                    debug("Stream::matchValue(%s): %s.%s[%li] = %lu\n",
+                    debug("Stream::matchValue(%s): %s.%s[%" Z "u] = %lu\n",
                             name(), pdbaddr->precord->name,
                             ((dbFldDes*)pdbaddr->pfldDes)->name,
                             nord, lval);
@@ -1160,7 +1302,7 @@ matchValue(const StreamFormat& format, const void* fieldaddress)
                 {
                     consumed = scanValue(format, lval);
                     if (consumed >= 0) ((epicsInt32*)buffer)[nord] = lval;
-                    debug("Stream::matchValue(%s): %s.%s[%li] = %li\n",
+                    debug("Stream::matchValue(%s): %s.%s[%" Z "u] = %li\n",
                             name(), pdbaddr->precord->name,
                             ((dbFldDes*)pdbaddr->pfldDes)->name,
                             nord, lval);
@@ -1171,7 +1313,7 @@ matchValue(const StreamFormat& format, const void* fieldaddress)
                     consumed = scanValue(format, lval);
                     if (consumed >= 0)
                         ((epicsUInt16*)buffer)[nord] = (epicsUInt16)lval;
-                    debug("Stream::matchValue(%s): %s.%s[%li] = %li\n",
+                    debug("Stream::matchValue(%s): %s.%s[%" Z "u] = %li\n",
                             name(), pdbaddr->precord->name,
                             ((dbFldDes*)pdbaddr->pfldDes)->name,
                             nord, lval);
@@ -1187,7 +1329,7 @@ matchValue(const StreamFormat& format, const void* fieldaddress)
                     if (consumed >= 0)
                         memcpy(((epicsFloat64*)buffer)+nord,
                             &f64, sizeof(f64));
-                    debug("Stream::matchValue(%s): %s.%s[%li] = %#g %#g\n",
+                    debug("Stream::matchValue(%s): %s.%s[%" Z "u] = %#g %#g\n",
                             name(), pdbaddr->precord->name,
                             ((dbFldDes*)pdbaddr->pfldDes)->name,
                             nord, dval,
@@ -1196,24 +1338,27 @@ matchValue(const StreamFormat& format, const void* fieldaddress)
                 }
                 case string_format:
                 {
-                    if (pdbaddr->field_type == DBF_CHAR)
+                    if (pdbaddr->field_type == DBF_CHAR ||
+                        pdbaddr->field_type == DBF_UCHAR)
                     {
                         // string to char array
-                        consumed = scanValue(format, buffer, nelem);
+                        stringsize = nelem;
+                        consumed = scanValue(format, buffer, stringsize);
                         debug("Stream::matchValue(%s): %s.%s = \"%.*s\"\n",
                                 name(), pdbaddr->precord->name,
                                 ((dbFldDes*)pdbaddr->pfldDes)->name,
                                 (int)consumed, buffer);
-                        nord = nelem;
+                        nord = nelem; // this shortcuts the loop
                     }
                     else
                     {
+                        stringsize = MAX_STRING_SIZE;
                         consumed = scanValue(format,
-                            buffer+MAX_STRING_SIZE*nord, MAX_STRING_SIZE);
-                        debug("Stream::matchValue(%s): %s.%s[%li] = \"%.*s\"\n",
+                            buffer+MAX_STRING_SIZE*nord, stringsize);
+                        debug("Stream::matchValue(%s): %s.%s[%" Z "u] = \"%.*s\"\n",
                                 name(), pdbaddr->precord->name,
                                 ((dbFldDes*)pdbaddr->pfldDes)->name,
-                                nord, MAX_STRING_SIZE, buffer+MAX_STRING_SIZE*nord);
+                                nord, (int)stringsize, buffer+MAX_STRING_SIZE*nord);
                     }
                     break;
                 }
@@ -1254,7 +1399,7 @@ matchValue(const StreamFormat& format, const void* fieldaddress)
             /* convert from Unix epoch (1 Jan 1970) to EPICS epoch (1 Jan 1990) */
             dval = dval-631152000u;
             pdbaddr->precord->time.secPastEpoch = (long)dval;
-            // rouding: we don't have 9 digits precision
+            // rounding: we don't have 9 digits precision
             // in a double of today's number of seconds
             pdbaddr->precord->time.nsec = (long)((dval-(long)dval)*1e6)*1000;
             debug("Stream::matchValue(%s): writing %i.%i to %s.TIME field\n",
@@ -1271,10 +1416,11 @@ matchValue(const StreamFormat& format, const void* fieldaddress)
 #endif
         }
         if (format.type == string_format &&
-            (pdbaddr->field_type == DBF_CHAR || pdbaddr->field_type == DBF_UCHAR))
+            (pdbaddr->field_type == DBF_CHAR ||
+            pdbaddr->field_type == DBF_UCHAR))
         {
             /* write strings to [U]CHAR arrays */
-            nord = consumed;
+            nord = stringsize;
             fmt.type = DBF_CHAR;
         }
         if (pdbaddr->precord == record || INIT_RUN)
@@ -1282,7 +1428,7 @@ matchValue(const StreamFormat& format, const void* fieldaddress)
             // write into own record, thus don't process it
             // in @init we must not process other record
             putfunc = "dbPut";
-            status = dbPut(pdbaddr, fmt.type, buffer, nord);
+            status = dbPut(pdbaddr, fmt.type, buffer, (long)nord);
             if (INIT_RUN && pdbaddr->precord != record)
             {
                 // clean error status of other record in @init
@@ -1296,7 +1442,7 @@ matchValue(const StreamFormat& format, const void* fieldaddress)
             // write into other record, thus process it
             putfunc = "dbPutField";
             status = dbPutField(pdbaddr, fmt.type,
-                buffer, nord);
+                buffer, (long)nord);
         }
         debug("Stream::matchValue(%s): %s(%s.%s, %s, %s) status=0x%x\n",
             name(), putfunc,
@@ -1313,25 +1459,26 @@ matchValue(const StreamFormat& format, const void* fieldaddress)
                 case DBF_ULONG:
                 case DBF_LONG:
                 case DBF_ENUM:
-                    error("%s: %s(%s.%s, %s, %li) failed\n",
+                    error("%s: %s(%s.%s, %s, %li, %" Z "u) failed\n",
                         name(), putfunc, pdbaddr->precord->name,
                         ((dbFldDes*)pdbaddr->pfldDes)->name,
                         pamapdbfType[fmt.type].strvalue,
-                        lval);
+                        lval, nord);
                     return false;
                 case DBF_DOUBLE:
-                    error("%s: %s(%s.%s, %s, %#g) failed\n",
+                    error("%s: %s(%s.%s, %s, %#g, %" Z "u) failed\n",
                         name(), putfunc, pdbaddr->precord->name,
                         ((dbFldDes*)pdbaddr->pfldDes)->name,
                         pamapdbfType[fmt.type].strvalue,
-                        dval);
+                        dval, nord);
                     return false;
                 case DBF_STRING:
-                    error("%s: %s(%s.%s, %s, \"%.*s\") failed\n",
+                case DBF_CHAR:
+                    error("%s: %s(%s.%s, %s, \"%.*s\", %" Z "u) failed\n",
                         name(), putfunc, pdbaddr->precord->name,
                         ((dbFldDes*)pdbaddr->pfldDes)->name,
                         pamapdbfType[fmt.type].strvalue,
-                        (int)consumed, buffer);
+                        (int)consumed, buffer, nord);
                     return false;
                 default:
                     return false;
@@ -1361,42 +1508,26 @@ matchValue(const StreamFormat& format, const void* fieldaddress)
     }
     flags |= ValueReceived;
     consumedInput += currentValueLength;
+    debug("Stream::matchValue(%s): success, %" Z "d bytes consumed\n", name(), currentValueLength);
     return true;
 }
 
 #ifdef EPICS_3_13
 // Pass command to vxWorks shell
 extern "C" int execute(const char *cmd);
-
-void streamExecuteCommand(CALLBACK *pcallback)
-{
-    Stream* pstream = static_cast<Stream*>(pcallback->user);
-
-    if (execute(pstream->outputLine()) != OK)
-    {
-        pstream->execCallback(StreamIoFault);
-    }
-    else
-    {
-        pstream->execCallback(StreamIoSuccess);
-    }
-}
-#else
-// Pass command to iocsh
-void streamExecuteCommand(CALLBACK *pcallback)
-{
-    Stream* pstream = static_cast<Stream*>(pcallback->user);
-
-    if (iocshCmd(pstream->outputLine()) != OK)
-    {
-        pstream->execCallback(StreamIoFault);
-    }
-    else
-    {
-        pstream->execCallback(StreamIoSuccess);
-    }
-}
 #endif
+
+void Stream::
+executeCommand()
+{
+    int status;
+#ifdef EPICS_3_13
+    status = ::execute(outputLine());
+#else
+    status = iocshCmd(outputLine());
+#endif
+    execCallback(status == OK ? StreamIoSuccess : StreamIoFault);
+}
 
 bool Stream::
 execute()

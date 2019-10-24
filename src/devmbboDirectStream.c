@@ -6,7 +6,7 @@
 * (C) 2005 Dirk Zimoch (dirk.zimoch@psi.ch)                    *
 *                                                              *
 * This is an EPICS record Interface for StreamDevice.          *
-* Please refer to the HTML files in ../doc/ for a detailed     *
+* Please refer to the HTML files in ../docs/ for a detailed    *
 * documentation.                                               *
 *                                                              *
 * If you do any changes in this file, you are not allowed to   *
@@ -19,69 +19,105 @@
 *                                                              *
 ***************************************************************/
 
-#include <mbboDirectRecord.h>
-#include "alarm.h"
+#include "mbboDirectRecord.h"
 #include "devStream.h"
-#include <epicsExport.h>
 
-static long readData (dbCommon *record, format_t *format)
+static long readData(dbCommon *record, format_t *format)
 {
-    mbboDirectRecord *mbboD = (mbboDirectRecord *) record;
+    mbboDirectRecord *mbboD = (mbboDirectRecord *)record;
     unsigned long val;
+    unsigned short monitor_mask;
+    unsigned int i;
+    unsigned char *bit;
 
-    if (format->type == DBF_ULONG || format->type == DBF_LONG)
+    if (format->type != DBF_ULONG && format->type != DBF_LONG)
+        return ERROR;
+    if (streamScanf(record, format, &val) == ERROR) return ERROR;
+    if (mbboD->mask) val &= mbboD->mask;
+
+    mbboD->rbv = val;
+    mbboD->rval = val;
+    val >>= mbboD->shft;
+    mbboD->val = val; /* no cast because we cannot be sure about type of VAL */
+
+    if (record->pact) return DO_NOT_CONVERT;
+    /* In @init handler, no processing, enforce monitor updates. */
+    monitor_mask = recGblResetAlarms(record);
+    if (mbboD->mlst != mbboD->val)
     {
-        if (streamScanf (record, format, &val)) return ERROR;
-        if (mbboD->mask)
-        {
-            val &= mbboD->mask;
-            mbboD->rbv = val;
-            if (INIT_RUN) mbboD->rval = val;
-            return OK;
-        }
-        else
-        {
-            /* No MASK, (NOBT = 0): use VAL field */
-            mbboD->val = (short)val;
-            return DO_NOT_CONVERT;
-        }
+        monitor_mask |= (DBE_VALUE | DBE_LOG);
+        mbboD->mlst = mbboD->val;
     }
-    return ERROR;
+    if (monitor_mask)
+    {
+        db_post_events(record, &mbboD->val, monitor_mask);
+    }
+    if (mbboD->oraw != mbboD->rval)
+    {
+        db_post_events(record, &mbboD->rval, monitor_mask | DBE_VALUE | DBE_LOG);
+        mbboD->oraw = mbboD->rval;
+    }
+    if (mbboD->orbv != mbboD->rbv)
+    {
+        db_post_events(record, &mbboD->rbv, monitor_mask | DBE_VALUE | DBE_LOG);
+        mbboD->orbv = mbboD->rbv;
+    }
+    /* update the bits */
+    for (i = 0; i < sizeof(mbboD->val) * 8; i++)
+    {
+        bit = &(mbboD->b0) + i;
+        if ((val & 1) == !*bit)
+        {
+            *bit = val & 1;
+            db_post_events(record, bit, monitor_mask | DBE_VALUE | DBE_LOG);
+        }
+        else if (monitor_mask)
+            db_post_events(record, bit, monitor_mask);
+        val >>= 1;
+    }
+    return DO_NOT_CONVERT;
 }
 
-static long writeData (dbCommon *record, format_t *format)
+static long writeData(dbCommon *record, format_t *format)
 {
-    mbboDirectRecord *mbboD = (mbboDirectRecord *) record;
+    mbboDirectRecord *mbboD = (mbboDirectRecord *)record;
     long val;
 
-    if (format->type == DBF_ULONG || format->type == DBF_LONG)
+    switch (format->type)
     {
-        if (mbboD->mask) val = mbboD->rval & mbboD->mask;
-        else val = mbboD->val;
-        return streamPrintf (record, format, val);
+        case DBF_ULONG:
+            val = mbboD->rval;
+            if (mbboD->mask) val &= mbboD->mask;
+            break;
+        case DBF_LONG:
+        case DBF_ENUM:
+            val = (epicsInt32)mbboD->rval;
+            if (mbboD->mask) val &= (epicsInt32)mbboD->mask;
+            break;
+        default:
+            return ERROR;
     }
-    return ERROR;
+    return streamPrintf(record, format, val);
 }
 
-static long initRecord (dbCommon *record)
+static long initRecord(dbCommon *record)
 {
-    mbboDirectRecord *mbboD = (mbboDirectRecord *) record;
-
+    mbboDirectRecord *mbboD = (mbboDirectRecord *)record;
     mbboD->mask <<= mbboD->shft;
-    
+
     /* Workaround for bug in mbboDirect record:
        Put to VAL overwrites value to 0 if SEVR is INVALID_ALARM
        Thus first write may send a wrong value.
     */
-    mbboD->sevr = 0;    
-    return streamInitRecord (record, &mbboD->out, readData, writeData);
+    mbboD->sevr = 0;
+    return streamInitRecord(record, &mbboD->out, readData, writeData);
 }
 
 /* Unfortunately the bug also corrupts the next write to VAL after an I/O error.
    Thus make sure the record is never left in INVALID_ALARM status.
 */
 
-static long write(dbCommon *record)
+static long write_mbbo(dbCommon *record)
 {
     long status = streamWrite(record);
     if (record->nsev == INVALID_ALARM) record->nsev = MAJOR_ALARM;
@@ -102,7 +138,7 @@ struct {
     streamInit,
     initRecord,
     streamGetIointInfo,
-    write
+    write_mbbo
 };
 
 epicsExportAddress(dset,devmbboDirectStream);
