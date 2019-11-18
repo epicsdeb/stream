@@ -4,11 +4,11 @@ Subject: stream: add mba checksum
 
 mda is the sum of a ascii byte string "%2X" subtraced from FF
 ---
- src/ChecksumConverter.cc | 15 ++++++++++++++-
- 1 file changed, 14 insertions(+), 1 deletion(-)
+ src/ChecksumConverter.cc | 17 +++++++++++++++--
+ 1 file changed, 15 insertions(+), 2 deletions(-)
 
 diff --git a/src/ChecksumConverter.cc b/src/ChecksumConverter.cc
-index 0317617..d3638c5 100644
+index 792dc49..fa364f8 100755
 --- a/src/ChecksumConverter.cc
 +++ b/src/ChecksumConverter.cc
 @@ -17,7 +17,7 @@
@@ -39,10 +39,12 @@ index 0317617..d3638c5 100644
  static uint32_t xor8(const uint8_t* data, size_t len, uint32_t sum)
  {
      while (len--)
-@@ -541,6 +553,7 @@ static checksum checksumMap[] =
+@@ -558,7 +570,8 @@ static checksum checksumMap[] =
      {"hexsum8", hexsum,           0x00,       0x00,       1}, // 0x2D
      {"cpi",     CPI,              0x00,       0x00,       1}, // 0x7E
      {"leybold", leybold,          0x00,       0x00,       1}, // 0x22
+-    {"brksCryo",brksCryo,         0x00,       0x00,       1}  // 0x4A
++    {"brksCryo",brksCryo,         0x00,       0x00,       1}, // 0x4A
 +    {"mba",     mba,              0xFF,       0xFF,       1}
  };
  
