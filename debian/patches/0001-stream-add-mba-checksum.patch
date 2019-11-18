@@ -8,7 +8,7 @@ mda is the sum of a ascii byte string "%2X" subtraced from FF
  1 file changed, 14 insertions(+), 1 deletion(-)
 
 diff --git a/src/ChecksumConverter.cc b/src/ChecksumConverter.cc
-index c70f4e1..a31906e 100644
+index 0317617..d3638c5 100644
 --- a/src/ChecksumConverter.cc
 +++ b/src/ChecksumConverter.cc
 @@ -17,7 +17,7 @@
@@ -20,7 +20,7 @@ index c70f4e1..a31906e 100644
  #include "StreamFormatConverter.h"
  #include "StreamError.h"
  #include <ctype.h>
-@@ -62,6 +62,18 @@ static uint32_t sum(const uint8_t* data, size_t len, uint32_t sum)
+@@ -68,6 +68,18 @@ static uint32_t sum(const uint8_t* data, size_t len, uint32_t sum)
      return sum;
  }
  
@@ -39,7 +39,7 @@ index c70f4e1..a31906e 100644
  static uint32_t xor8(const uint8_t* data, size_t len, uint32_t sum)
  {
      while (len--)
-@@ -535,6 +547,7 @@ static checksum checksumMap[] =
+@@ -541,6 +553,7 @@ static checksum checksumMap[] =
      {"hexsum8", hexsum,           0x00,       0x00,       1}, // 0x2D
      {"cpi",     CPI,              0x00,       0x00,       1}, // 0x7E
      {"leybold", leybold,          0x00,       0x00,       1}, // 0x22

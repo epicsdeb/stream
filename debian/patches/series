@@ -2,4 +2,3 @@
 0002-don-t-build-streamApp.patch
 0003-Delete-GNUmakefile.patch
 0004-Customize-configure-RELEASE.patch
-0005-Ignore-config-directory.patch

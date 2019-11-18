@@ -8,7 +8,7 @@ Subject: don't build streamApp
  2 files changed, 2 insertions(+), 3 deletions(-)
 
 diff --git a/Makefile b/Makefile
-index 6f08a33..b55b83e 100644
+index c0bfc61..aadd7bc 100644
 --- a/Makefile
 +++ b/Makefile
 @@ -15,7 +15,7 @@ else
