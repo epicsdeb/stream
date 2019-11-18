@@ -21,6 +21,14 @@
 #include "StreamError.h"
 #include "StreamBuffer.h"
 
+#include "asynDriver.h"
+#include "asynOctet.h"
+#include "asynInt32.h"
+#include "asynUInt32Digital.h"
+#include "asynGpibDriver.h"
+
+#include "devStream.h"
+
 #ifdef EPICS_3_13
 #include <assert.h>
 #include <wdLib.h>
@@ -32,17 +40,9 @@ extern "C" {
 #include "epicsAssert.h"
 #include "epicsTime.h"
 #include "epicsTimer.h"
-#include "epicsStdioRedirect.h"
 #include "iocsh.h"
 #endif
 
-#include "asynDriver.h"
-#include "asynOctet.h"
-#include "asynInt32.h"
-#include "asynUInt32Digital.h"
-#include "asynGpibDriver.h"
-
-#include "devStream.h"
 #include "MacroMagic.h"
 
 #define Z PRINTF_SIZE_T_PREFIX
