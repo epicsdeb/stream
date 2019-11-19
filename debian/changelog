@@ -1,3 +1,9 @@
+epics-stream (2.8.10-2) unstable; urgency=medium
+
+  * Add more patches for bug fixes
+
+ -- Martin Konrad <konrad@frib.msu.edu>  Tue, 19 Nov 2019 09:15:08 -0500
+
 epics-stream (2.8.10-1) unstable; urgency=medium
 
   * New upstream version 2.8.10
