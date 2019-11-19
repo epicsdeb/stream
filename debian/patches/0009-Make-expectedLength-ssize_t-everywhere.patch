@@ -1,0 +1,161 @@
+From: Bruce Hill <bhill@slac.stanford.edu>
+Date: Wed, 6 Nov 2019 19:43:11 -0800
+Subject: Make expectedLength ssize_t everywhere.
+
+Also fix other type related warnings.
+---
+ src/AsynDriverInterface.cc |  8 ++++----
+ src/ChecksumConverter.cc   | 11 ++++++-----
+ src/DebugInterface.cc      |  6 +++---
+ src/StreamBusInterface.cc  |  2 +-
+ src/StreamBusInterface.h   |  4 ++--
+ 5 files changed, 16 insertions(+), 15 deletions(-)
+
+diff --git a/src/AsynDriverInterface.cc b/src/AsynDriverInterface.cc
+index 1a60657..546a548 100644
+--- a/src/AsynDriverInterface.cc
++++ b/src/AsynDriverInterface.cc
+@@ -162,7 +162,7 @@ class AsynDriverInterface : StreamBusInterface
+     double writeTimeout;
+     double readTimeout;
+     double replyTimeout;
+-    size_t expectedLength;
++    ssize_t expectedLength;
+     unsigned long eventMask;
+     unsigned long receivedEvent;
+     StreamBuffer inputBuffer;
+@@ -187,7 +187,7 @@ class AsynDriverInterface : StreamBusInterface
+     bool writeRequest(const void* output, size_t size,
+         unsigned long writeTimeout_ms);
+     bool readRequest(unsigned long replyTimeout_ms,
+-        unsigned long readTimeout_ms, size_t expectedLength, bool async);
++        unsigned long readTimeout_ms, ssize_t expectedLength, bool async);
+     bool acceptEvent(unsigned long mask, unsigned long replytimeout_ms);
+     bool supportsEvent();
+     bool supportsAsyncRead();
+@@ -800,7 +800,7 @@ writeHandler()
+ // interface function: we want to read something
+ bool AsynDriverInterface::
+ readRequest(unsigned long replyTimeout_ms, unsigned long readTimeout_ms,
+-    size_t _expectedLength, bool async)
++    ssize_t _expectedLength, bool async)
+ {
+     debug("AsynDriverInterface::readRequest(%s, %ld msec reply, "
+         "%ld msec read, expect %" Z "u bytes, async=%s)\n",
+@@ -906,7 +906,7 @@ readHandler()
+     size_t bytesToRead = peeksize;
+     size_t buffersize;
+ 
+-    if ((ssize_t) expectedLength > 0)
++    if (expectedLength > 0)
+     {
+         buffersize = expectedLength;
+         if (peeksize > 1)
+diff --git a/src/ChecksumConverter.cc b/src/ChecksumConverter.cc
+index fa364f8..8237e72 100755
+--- a/src/ChecksumConverter.cc
++++ b/src/ChecksumConverter.cc
+@@ -737,13 +737,14 @@ scanPseudo(const StreamFormat& format, StreamBuffer& input, size_t& cursor)
+     debug("ChecksumConverter %s: input to check: \"%s\n",
+         checksumMap[fnum].name, input.expand(start,length)());
+ 
+-    uint_fast8_t expectedLength =
++    uint_fast8_t nDigits =
+         // get number of decimal digits from number of bytes: ceil(bytes*2.5)
+         format.flags & sign_flag ? (checksumMap[fnum].bytes + 1) * 25 / 10 - 2 :
+         format.flags & (zero_flag|left_flag) ? 2 * checksumMap[fnum].bytes :
+         checksumMap[fnum].bytes;
++    ssize_t expectedLength = nDigits;
+ 
+-    if (input.length() - cursor < expectedLength)
++    if ((ssize_t)( input.length() - cursor ) < expectedLength)
+     {
+         debug("ChecksumConverter %s: Input '%s' too short for checksum\n",
+             checksumMap[fnum].name, input.expand(cursor)());
+@@ -762,7 +763,7 @@ scanPseudo(const StreamFormat& format, StreamBuffer& input, size_t& cursor)
+     if (format.flags & sign_flag) // decimal
+     {
+         uint32_t sumin = 0;
+-        size_t i;
++        ssize_t i;
+         for (i = 0; i < expectedLength; i++)
+         {
+             inchar = input[cursor+i];
+@@ -784,7 +785,7 @@ scanPseudo(const StreamFormat& format, StreamBuffer& input, size_t& cursor)
+         {
+             if (format.flags & zero_flag) // ASCII
+             {
+-                if (sscanf(input(cursor+2*i), "%2" SCNx8, &inchar) != 1)
++                if (sscanf(input(cursor+2*i), "%2" SCNx8, (int8_t *) &inchar) != 1)
+                 {
+                     debug("ChecksumConverter %s: Input byte '%s' is not a hex byte\n",
+                         checksumMap[fnum].name, input.expand(cursor+2*i,2)());
+@@ -828,7 +829,7 @@ scanPseudo(const StreamFormat& format, StreamBuffer& input, size_t& cursor)
+         {
+             if (format.flags & zero_flag) // ASCII
+             {
+-                sscanf(input(cursor+2*i), "%2" SCNx8, &inchar);
++                sscanf(input(cursor+2*i), "%2" SCNx8, (int8_t *) &inchar);
+             }
+             else
+             if (format.flags & left_flag) // poor man's hex: 0x30 - 0x3F
+diff --git a/src/DebugInterface.cc b/src/DebugInterface.cc
+index 89c5dbb..3d3e527 100644
+--- a/src/DebugInterface.cc
++++ b/src/DebugInterface.cc
+@@ -37,7 +37,7 @@ class DebugInterface : StreamBusInterface
+     bool writeRequest(const void* output, size_t size,
+         unsigned long writeTimeout_ms);
+     bool readRequest(unsigned long replyTimeout_ms,
+-        unsigned long readTimeout_ms, size_t expectedLength, bool async);
++        unsigned long readTimeout_ms, ssize_t expectedLength, bool async);
+ 
+ protected:
+     ~DebugInterface();
+@@ -169,9 +169,9 @@ writeRequest(const void* output, size_t size, unsigned long writeTimeout_ms)
+ // Return false if the read request cannot be accepted.
+ bool DebugInterface::
+ readRequest(unsigned long replyTimeout_ms, unsigned long readTimeout_ms,
+-    size_t expectedLength, bool async)
++    ssize_t expectedLength, bool async)
+ {
+-    debug("DebugInterface::readRequest(%s, %ld msec reply, %ld msec read, expect %" Z "u bytes, asyn=%s)\n",
++    debug("DebugInterface::readRequest(%s, %ld msec reply, %ld msec read, expect %" Z "d bytes, asyn=%s)\n",
+         clientName(), replyTimeout_ms, readTimeout_ms, expectedLength, async?"yes":"no");
+ 
+     // Debug interface does not support async mode.
+diff --git a/src/StreamBusInterface.cc b/src/StreamBusInterface.cc
+index 41517dd..9edc4af 100644
+--- a/src/StreamBusInterface.cc
++++ b/src/StreamBusInterface.cc
+@@ -118,7 +118,7 @@ writeRequest(const void*, size_t, unsigned long)
+ }
+ 
+ bool StreamBusInterface::
+-readRequest(unsigned long, unsigned long, size_t, bool)
++readRequest(unsigned long, unsigned long, ssize_t, bool)
+ {
+     return false;
+ }
+diff --git a/src/StreamBusInterface.h b/src/StreamBusInterface.h
+index b734c25..7ca163e 100644
+--- a/src/StreamBusInterface.h
++++ b/src/StreamBusInterface.h
+@@ -76,7 +76,7 @@ public:
+             return businterface && businterface->writeRequest(output, size, timeout_ms);
+         }
+         bool busReadRequest(unsigned long replytimeout_ms,
+-            unsigned long readtimeout_ms, size_t expectedLength,
++            unsigned long readtimeout_ms, ssize_t expectedLength,
+             bool async) {
+             return businterface && businterface->readRequest(replytimeout_ms,
+                     readtimeout_ms, expectedLength, async);
+@@ -133,7 +133,7 @@ protected:
+     virtual bool writeRequest(const void* output, size_t size,
+         unsigned long timeout_ms);
+     virtual bool readRequest(unsigned long replytimeout_ms,
+-        unsigned long readtimeout_ms, size_t expectedLength,
++        unsigned long readtimeout_ms, ssize_t expectedLength,
+         bool async);
+     virtual bool supportsEvent(); // defaults to false
+     virtual bool supportsAsyncRead(); // defaults to false

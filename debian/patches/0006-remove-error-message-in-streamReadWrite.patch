@@ -1,0 +1,23 @@
+From: "benjamin.franksen@helmholtz-berlin.de"
+ <benjamin.franksen@helmholtz-berlin.de>
+Date: Thu, 10 Oct 2019 14:51:56 +0200
+Subject: remove error message in streamReadWrite
+
+If the record hasn't been initialized correctly, we don't want the console
+to be spammed every time the record gets processed.
+---
+ src/StreamEpics.cc | 1 -
+ 1 file changed, 1 deletion(-)
+
+diff --git a/src/StreamEpics.cc b/src/StreamEpics.cc
+index 6c6054c..5ed0efc 100644
+--- a/src/StreamEpics.cc
++++ b/src/StreamEpics.cc
+@@ -587,7 +587,6 @@ long streamReadWrite(dbCommon *record)
+     if (!stream || stream->status == ERROR)
+     {
+         (void) recGblSetSevr(record, UDF_ALARM, INVALID_ALARM);
+-        error("%s: Record not initialised correctly\n", record->name);
+         return ERROR;
+     }
+     return stream->process() ? stream->convert : ERROR;

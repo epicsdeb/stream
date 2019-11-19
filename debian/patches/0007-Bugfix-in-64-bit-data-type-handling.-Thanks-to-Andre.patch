@@ -1,0 +1,137 @@
+From: Dirk Zimoch <dirk.zimoch@psi.ch>
+Date: Thu, 7 Nov 2019 20:23:35 +0100
+Subject: Bugfix in 64 bit data type handling. (Thanks to Andrew Johnson)
+
+---
+ src/StreamEpics.cc      |  2 +-
+ src/devaaiStream.c      | 10 +++++-----
+ src/devaaoStream.c      |  8 ++++----
+ src/devwaveformStream.c |  8 ++++----
+ 4 files changed, 14 insertions(+), 14 deletions(-)
+
+diff --git a/src/StreamEpics.cc b/src/StreamEpics.cc
+index 5ed0efc..03c1c6d 100644
+--- a/src/StreamEpics.cc
++++ b/src/StreamEpics.cc
+@@ -1099,7 +1099,7 @@ getFieldAddress(const char* fieldname, StreamBuffer& address)
+ }
+ 
+ static const unsigned char dbfMapping[] =
+-#ifdef DBF_INT64
++#ifdef DBR_INT64
+     {0, DBF_UINT64, DBF_INT64, DBF_ENUM, DBF_DOUBLE, DBF_STRING};
+ #else
+     {0, DBF_ULONG, DBF_LONG, DBF_ENUM, DBF_DOUBLE, DBF_STRING};
+diff --git a/src/devaaiStream.c b/src/devaaiStream.c
+index a8164bf..4e2c473 100644
+--- a/src/devaaiStream.c
++++ b/src/devaaiStream.c
+@@ -69,7 +69,7 @@ static long readData(dbCommon *record, format_t *format)
+                     case DBF_FLOAT:
+                         ((epicsFloat32 *)aai->bptr)[aai->nord] = (epicsFloat32)lval;
+                         break;
+-#ifdef DBF_INT64
++#ifdef DBR_INT64
+                     case DBF_INT64:
+                     case DBF_UINT64:
+                         ((epicsInt64 *)aai->bptr)[aai->nord] = (epicsInt64)lval;
+@@ -167,7 +167,7 @@ static long writeData(dbCommon *record, format_t *format)
+                     case DBF_FLOAT:
+                         dval = ((epicsFloat32 *)aai->bptr)[nowd];
+                         break;
+-#ifdef DBF_INT64
++#ifdef DBR_INT64
+                     case DBF_INT64:
+                         dval = ((epicsInt64 *)aai->bptr)[nowd];
+                         break;
+@@ -210,12 +210,12 @@ static long writeData(dbCommon *record, format_t *format)
+             {
+                 switch (aai->ftvl)
+                 {
+-#ifdef DBF_INT64
++#ifdef DBR_INT64
+                     case DBF_INT64:
+-                        lval = ((epicsInt64 *)aao->bptr)[nowd];
++                        lval = ((epicsInt64 *)aai->bptr)[nowd];
+                         break;
+                     case DBF_UINT64:
+-                        lval = ((epicsUInt64 *)aao->bptr)[nowd];
++                        lval = ((epicsUInt64 *)aai->bptr)[nowd];
+                         break;
+ #endif
+                     case DBF_LONG:
+diff --git a/src/devaaoStream.c b/src/devaaoStream.c
+index affdd8c..5bedb19 100644
+--- a/src/devaaoStream.c
++++ b/src/devaaoStream.c
+@@ -68,7 +68,7 @@ static long readData(dbCommon *record, format_t *format)
+                     case DBF_FLOAT:
+                         ((epicsFloat32 *)aao->bptr)[aao->nord] = (epicsFloat32)lval;
+                         break;
+-#ifdef DBF_INT64
++#ifdef DBR_INT64
+                     case DBF_INT64:
+                     case DBF_UINT64:
+                         ((epicsInt64 *)aao->bptr)[aao->nord] = (epicsInt64)lval;
+@@ -171,7 +171,7 @@ end_no_check:
+ #endif
+     if (monitor_mask)
+         db_post_events(aao, aao->bptr, monitor_mask);
+-    
++
+     return OK;
+ }
+ 
+@@ -196,7 +196,7 @@ static long writeData(dbCommon *record, format_t *format)
+                     case DBF_FLOAT:
+                         dval = ((epicsFloat32 *)aao->bptr)[nowd];
+                         break;
+-#ifdef DBF_INT64
++#ifdef DBR_INT64
+                     case DBF_INT64:
+                         dval = ((epicsInt64 *)aao->bptr)[nowd];
+                         break;
+@@ -239,7 +239,7 @@ static long writeData(dbCommon *record, format_t *format)
+             {
+                 switch (aao->ftvl)
+                 {
+-#ifdef DBF_INT64
++#ifdef DBR_INT64
+                     case DBF_INT64:
+                         lval = ((epicsInt64 *)aao->bptr)[nowd];
+                         break;
+diff --git a/src/devwaveformStream.c b/src/devwaveformStream.c
+index 8a68ca5..c911820 100644
+--- a/src/devwaveformStream.c
++++ b/src/devwaveformStream.c
+@@ -70,10 +70,10 @@ static long readData(dbCommon *record, format_t *format)
+                     case DBF_FLOAT:
+                         ((epicsFloat32 *)wf->bptr)[wf->nord] = (epicsFloat32)lval;
+                         break;
+-#ifdef DBF_INT64
++#ifdef DBR_INT64
+                     case DBF_INT64:
+                     case DBF_UINT64:
+-                        ((epicsInt64 *)wf->bptr)[aao->nord] = (epicsInt64)lval;
++                        ((epicsInt64 *)wf->bptr)[wf->nord] = (epicsInt64)lval;
+                         break;
+ #endif
+                     case DBF_LONG:
+@@ -168,7 +168,7 @@ static long writeData(dbCommon *record, format_t *format)
+                     case DBF_FLOAT:
+                         dval = ((epicsFloat32 *)wf->bptr)[nowd];
+                         break;
+-#ifdef DBF_INT64
++#ifdef DBR_INT64
+                     case DBF_INT64:
+                         dval = ((epicsInt64 *)wf->bptr)[nowd];
+                         break;
+@@ -211,7 +211,7 @@ static long writeData(dbCommon *record, format_t *format)
+             {
+                 switch (wf->ftvl)
+                 {
+-#ifdef DBF_INT64
++#ifdef DBR_INT64
+                     case DBF_INT64:
+                         lval = ((epicsInt64 *)wf->bptr)[nowd];
+                         break;
