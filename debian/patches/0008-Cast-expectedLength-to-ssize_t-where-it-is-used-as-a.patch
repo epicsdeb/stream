@@ -1,0 +1,22 @@
+From: Garth Brown <gwbrown@slac.stanford.edu>
+Date: Wed, 6 Nov 2019 16:27:38 -0800
+Subject: Cast expectedLength to ssize_t where it is used as a signed number.
+ Fixes buffer overrun memory corruption segfault.
+
+---
+ src/AsynDriverInterface.cc | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/src/AsynDriverInterface.cc b/src/AsynDriverInterface.cc
+index 861957c..1a60657 100644
+--- a/src/AsynDriverInterface.cc
++++ b/src/AsynDriverInterface.cc
+@@ -906,7 +906,7 @@ readHandler()
+     size_t bytesToRead = peeksize;
+     size_t buffersize;
+ 
+-    if (expectedLength > 0)
++    if ((ssize_t) expectedLength > 0)
+     {
+         buffersize = expectedLength;
+         if (peeksize > 1)

@@ -1,5 +1,9 @@
-0001-stream-add-mba-checksum.patch
-0002-don-t-build-streamApp.patch
-0003-Delete-GNUmakefile.patch
-0004-Customize-configure-RELEASE.patch
-0005-Ignore-config-directory.patch
+0001-New-Checksums-including-support-for-Brooks-Cryopump.patch
+0002-stream-add-mba-checksum.patch
+0003-don-t-build-streamApp.patch
+0004-Delete-GNUmakefile.patch
+0005-Customize-configure-RELEASE.patch
+0006-remove-error-message-in-streamReadWrite.patch
+0007-Bugfix-in-64-bit-data-type-handling.-Thanks-to-Andre.patch
+0008-Cast-expectedLength-to-ssize_t-where-it-is-used-as-a.patch
+0009-Make-expectedLength-ssize_t-everywhere.patch
